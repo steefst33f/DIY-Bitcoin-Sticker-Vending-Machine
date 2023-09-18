@@ -104,9 +104,8 @@ void startApWifiSetup() {
    // Create ESP32 AP
   WiFi.softAP(apSSID, apPassword);
 
-  IPAddress apIP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
-  Serial.println(apIP);
+  Serial.println(WiFi.softAPIP().toString());
   Serial.print("AP SSID: ");
   Serial.println(apSSID);
   Serial.print("AP password: ");
@@ -183,14 +182,17 @@ void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOf
 
 void displayWifiSetupQrCode() {
   tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.drawString("ESP32 Wi-Fi Setup", 0, 10, 2); // Display a title
+  tft.drawString("ESP32 Wi-Fi Setup", 15, 10, 2); // Display a title
+  tft.drawString("SSID: " + apSSID, 15, 30, 2); 
+  tft.drawString("password: " + apPassword, 15, 45, 2); 
+  tft.drawString("IP: " +  WiFi.softAPIP().toString(), 15, 60, 2); 
     
   // QrCode AP
   String qrCodeData;
   int qrCodePixelSize = 4;
   qrCodeData = "WIFI:S:" + apSSID + ";T:WPA2;P:" + apPassword + ";";
   QRCode qrCodeAp = createQrCode(qrCodeData);
-  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 3, 40);
+  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 2, 80);
 }
 
 void displayConnectingToWifi() {
@@ -221,7 +223,7 @@ void drawMultilineText(String text) {
     int startPos = 0;
     int endPos = 0;
 
-    for (int i = 0; i < 3; i++) { // Display up to 3 lines (adjust as needed)
+    for (int i = 0; i < 5; i++) { // Display up to 5 lines (adjust as needed)
         endPos = text.indexOf('\n', startPos);
         if (endPos == -1) {
             line = text.substring(startPos);
