@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
-// #include <WiFiClient.h>
+#include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
 #include <TFT_eSPI.h>
 #include <QRCode.h>  // Include the QRCode library
@@ -10,10 +10,12 @@ Preferences preferences;
 
 const String apSSID = "ESP32_AP";
 const String apPassword = "password123";
+IPAddress apIP(192, 168, 4, 1);
 
 String savedSSID = "";
 String savedPassword = "";
 
+DNSServer dnsServer;
 AsyncWebServer server(80);
 
 TFT_eSPI tft = TFT_eSPI(); 
@@ -59,8 +61,7 @@ void setup() {
 }
 
 void loop() {
-  // Your code here
-    delay(1000);
+    dnsServer.processNextRequest();
 }
 
 void getSavedWifiCredentials() {
@@ -103,6 +104,8 @@ bool connectToWifi(String ssid, String password) {
 void startApWifiSetup() {
    // Create ESP32 AP
   WiFi.softAP(apSSID, apPassword);
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+  dnsServer.start(53, "*", apIP);
 
   Serial.print("AP IP address: ");
   Serial.println(WiFi.softAPIP().toString());
@@ -128,6 +131,11 @@ void startApWifiSetup() {
     html += "</body></html>";
     request->send(200, "text/html", html);
   });
+
+  server.onNotFound([](AsyncWebServerRequest* request){
+        Serial.println("**client gets redeirected to: /login ***");
+        request->redirect("http://" + apIP.toString());
+    });
 
   server.on("/configure", HTTP_POST, [](AsyncWebServerRequest *request){
     String ssid = request->arg("ssid");
