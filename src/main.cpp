@@ -190,22 +190,23 @@ void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOf
 
 void displayWifiSetupQrCode() {
   tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.drawString("ESP32 Wi-Fi Setup", 15, 10, 2); // Display a title
-  tft.drawString("SSID: " + apSSID, 15, 30, 2); 
-  tft.drawString("password: " + apPassword, 15, 45, 2); 
-  tft.drawString("IP: " +  WiFi.softAPIP().toString(), 15, 60, 2); 
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawString("WiFi Setup", 2, 5, 4); // Display a title
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString("SSID: " + apSSID, 2, 30, 2); 
+  tft.drawString("PassW: " + apPassword, 2, 45, 2); 
+  tft.drawString("IP: " +  WiFi.softAPIP().toString(), 2, 60, 2); 
     
   // QrCode AP
   String qrCodeData;
   int qrCodePixelSize = 4;
   qrCodeData = "WIFI:S:" + apSSID + ";T:WPA2;P:" + apPassword + ";";
   QRCode qrCodeAp = createQrCode(qrCodeData);
-  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 2, 80);
+  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 2, 100);
 }
 
 void displayConnectingToWifi() {
   tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.setTextDatum(MC_DATUM);   // Center text horizontally and vertically
   tft.setTextPadding(tft.width()); // Remove text padding
   String longText = "Connecting to Wifi...";
   tft.drawCentreString(longText, tft.width() / 2, tft.height() / 2, 2);
@@ -217,7 +218,6 @@ void displayWifiConnected() {
   wifiInfo += "IP address: " + WiFi.localIP().toString() + "\n";
 
   tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.setTextDatum(MC_DATUM);   // Center text horizontally and vertically
   drawMultilineText(wifiInfo);
 }
 
