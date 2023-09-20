@@ -26,10 +26,16 @@ bool connectToWifi(String ssid, String password);
 void startApWifiSetup();
 QRCode createQrCode(String data);
 void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xPosition, int yPosition);
+void displayWifiSetup();
+void displayWifiCredentials();
 void displayWifiSetupQrCode();
 void displayConnectingToWifi();
 void displayWifiConnected();
+void displayErrorMessage(String text);
+void displayInfoMessage(String text);
+void displaySuccessMessage(String text);
 void drawMultilineText(String text);
+void onWiFiEvent(WiFiEvent_t event);
 
 void setup() {
   Serial.begin(115200);
@@ -40,7 +46,7 @@ void setup() {
 
   // Setup tft screen
   tft.init();
-  tft.setRotation(0);
+  tft.setRotation(1);
   tft.fillScreen(TFT_WHITE); // Clear the screen
   tft.setTextColor(TFT_BLACK);
 
@@ -54,9 +60,10 @@ void setup() {
   
   if (isConnectedToWifi) {
     displayWifiConnected();
+    WiFi.onEvent(onWiFiEvent);
   } else {
     startApWifiSetup();
-    displayWifiSetupQrCode();
+    displayWifiSetup();
   }
 }
 
@@ -149,7 +156,7 @@ void startApWifiSetup() {
       displayWifiConnected();
     } else {
       request->send(400, "text/plain", "Invalid configuration!");
-      displayWifiSetupQrCode();
+      displayWifiSetup();
     }
   });
 
@@ -184,25 +191,42 @@ void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOf
     }
     Serial.print("\n");
   }
-
   Serial.print("\n\n\n\n");
+}
+
+void displayWifiSetup() {
+  while(WiFi.status() != WL_CONNECTED)
+  {
+    displayWifiCredentials();
+    delay(7000);
+    displayWifiSetupQrCode();
+    delay(7000);
+  }
+}
+
+void displayWifiCredentials() {
+  tft.fillScreen(TFT_WHITE); // Clear the screen
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawString("WiFi Setup", 2, 5, 4); // Display a title
+  String text = "SSID: " + apSSID + "\n"; 
+  text += "PassW: " + apPassword + "\n"; 
+  text += "IP: " +  WiFi.softAPIP().toString() + "\n"; 
+  tft.setTextColor(TFT_BLACK);
+  uint16_t maxWidth = tft.width();// /2;
+  uint16_t maxHeight = tft.height(); 
+  drawMultilineText(text);
 }
 
 void displayWifiSetupQrCode() {
   tft.fillScreen(TFT_WHITE); // Clear the screen
   tft.setTextColor(TFT_DARKCYAN);
   tft.drawString("WiFi Setup", 2, 5, 4); // Display a title
-  tft.setTextColor(TFT_BLACK);
-  tft.drawString("SSID: " + apSSID, 2, 30, 2); 
-  tft.drawString("PassW: " + apPassword, 2, 45, 2); 
-  tft.drawString("IP: " +  WiFi.softAPIP().toString(), 2, 60, 2); 
-    
   // QrCode AP
   String qrCodeData;
-  int qrCodePixelSize = 4;
+  int qrCodePixelSize = 3;
   qrCodeData = "WIFI:S:" + apSSID + ";T:WPA2;P:" + apPassword + ";";
   QRCode qrCodeAp = createQrCode(qrCodeData);
-  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 2, 100);
+  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 70, 35);
 }
 
 void displayConnectingToWifi() {
@@ -219,6 +243,36 @@ void displayWifiConnected() {
 
   tft.fillScreen(TFT_WHITE); // Clear the screen
   drawMultilineText(wifiInfo);
+}
+
+void displayErrorMessage(String text) {
+  tft.setTextColor(TFT_WHITE);
+  tft.fillScreen(TFT_RED);
+  tft.setTextFont(2);
+  tft.setTextWrap(true, true);
+  tft.println(text);}
+
+void displayMessage(String text) {
+  tft.setTextColor(TFT_BLACK);
+  tft.fillScreen(TFT_WHITE);
+  tft.setTextFont(2);
+  tft.setTextWrap(true, true);
+  tft.println(text);
+}
+
+void displaySuccessMessage(String text) {
+  tft.setTextColor(TFT_BLACK);
+  tft.fillScreen(TFT_WHITE);
+  tft.setTextFont(2);
+  tft.setTextWrap(true, true);
+  tft.println(text);
+}
+
+void displayInfoMessage(String text) {
+  tft.setTextColor(TFT_BLACK);
+  tft.fillScreen(TFT_WHITE);
+  tft.setTextWrap(true, true);
+  tft.println(text);
 }
 
 void drawMultilineText(String text) {
@@ -245,3 +299,99 @@ void drawMultilineText(String text) {
     }
 }
 
+void onWiFiEvent(WiFiEvent_t event) {
+  String message = "";
+  switch (event) {
+    case SYSTEM_EVENT_STA_GOT_IP:
+      message = "Connected to Wi-Fi, IP address: " + WiFi.localIP().toString();
+      Serial.println(message);
+      displayWifiConnected();
+      break;
+    case SYSTEM_EVENT_STA_DISCONNECTED:
+      message = "Wi-Fi disconnected, attempting to reconnect...";
+      Serial.println(message);
+      displayErrorMessage(message);
+      WiFi.reconnect();
+      break;
+    case SYSTEM_EVENT_WIFI_READY:
+      message = "Wi-Fi interface ready";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_SCAN_DONE:
+      message = "Wi-Fi scan completed";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_START:
+      message = "Station mode started";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_STOP:
+      message = "Station mode stopped";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_CONNECTED:
+      message = "Connected to AP";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
+      message = "Authentication mode changed";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_LOST_IP:
+      message = "Lost IP address";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
+      message = "WPS success in station mode";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_WPS_ER_FAILED:
+      message = "WPS failed in station mode";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
+      message = "WPS timeout in station mode";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_STA_WPS_ER_PIN:
+      message = "WPS pin code in station mode";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_AP_START:
+      message = "Access Point started";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_AP_STOP:
+      message = "Access Point stopped";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_AP_STACONNECTED:
+      message = "Station connected to Access Point";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    case SYSTEM_EVENT_AP_STADISCONNECTED:
+      message = "Station disconnected from Access Point";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+    default:
+      message = "Unknown Wi-Fi event";
+      Serial.println(message);
+      displayInfoMessage(message);
+      break;
+  }
+}
