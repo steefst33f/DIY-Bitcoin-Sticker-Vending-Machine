@@ -2,9 +2,9 @@
 #include <WiFi.h>
 #include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
-#include <TFT_eSPI.h>
-#include <QRCode.h>  // Include the QRCode library
 #include <Preferences.h>
+
+#include "Display.h"
 
 Preferences preferences;
 
@@ -18,24 +18,17 @@ String savedPassword = "";
 DNSServer dnsServer;
 AsyncWebServer server(80);
 
-TFT_eSPI tft = TFT_eSPI(); 
-
 void getSavedWifiCredentials();
 void setSavedWifiCredentials(String ssid, String password);
 bool connectToWifi(String ssid, String password);
 void startApWifiSetup();
-QRCode createQrCode(String data);
-void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xPosition, int yPosition);
-void displayWifiSetup();
-void displayWifiCredentials();
-void displayWifiSetupQrCode();
-void displayConnectingToWifi();
-void displayWifiConnected();
-void displayErrorMessage(String text);
-void displayInfoMessage(String text);
-void displaySuccessMessage(String text);
-void drawMultilineText(String text);
+void displayWifiSetup(String ssid, String password, String ip);
+
 void onWiFiEvent(WiFiEvent_t event);
+
+String localIp() {
+  return WiFi.localIP().toString();
+}
 
 void setup() {
   Serial.begin(115200);
@@ -44,11 +37,7 @@ void setup() {
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
-  // Setup tft screen
-  tft.init();
-  tft.setRotation(1);
-  tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.setTextColor(TFT_BLACK);
+  initDisplay();
 
   getSavedWifiCredentials();
 
@@ -59,11 +48,11 @@ void setup() {
   } 
   
   if (isConnectedToWifi) {
-    displayWifiConnected();
+    displayWifiConnected(savedSSID, localIp());
     WiFi.onEvent(onWiFiEvent);
   } else {
     startApWifiSetup();
-    displayWifiSetup();
+    displayWifiSetup(apSSID, apPassword, apIP.toString());
   }
 }
 
@@ -104,7 +93,7 @@ bool connectToWifi(String ssid, String password) {
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
   Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println(localIp());
   return true;
 }
 
@@ -153,159 +142,33 @@ void startApWifiSetup() {
 
     if (connectToWifi(savedSSID, savedPassword)) {
       request->send(200, "text/plain", "Configuration successful!");
-      displayWifiConnected();
+      displayWifiConnected(ssid, localIp());
     } else {
       request->send(400, "text/plain", "Invalid configuration!");
-      displayWifiSetup();
+      displayWifiSetup(apSSID, apPassword, apIP.toString());
     }
   });
 
   server.begin();
 }
 
-QRCode createQrCode(String data) {
-  Serial.println(data);
-  
-  const char *qrDataChar = data.c_str();
-  QRCode qrCode;
-  uint8_t qrcodeData[qrcode_getBufferSize(20)];
-
-  qrcode_initText(&qrCode, qrcodeData, 4, 0, qrDataChar);
-  return qrCode;
-}
-
-void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOffSet) {
-  Serial.print("\n\n\n\n");
-
-  for (uint8_t y = 0; y < qrCode.size; y++) {
-    // Left quiet zone
-    Serial.print("        ");
-    for (uint8_t x = 0; x < qrCode.size; x++) {
-      if (qrcode_getModule(&qrCode, x, y)) {
-        tft.fillRect(xOffset + pixelSize * x, yOffSet + pixelSize * y, pixelSize, pixelSize, TFT_BLACK);
-        Serial.print("\u2588"); // Print each module (UTF-8 \u2588 is a solid block)
-      } else {
-        tft.fillRect(xOffset + pixelSize * x, yOffSet + pixelSize * y, pixelSize, pixelSize, TFT_WHITE);
-        Serial.print(" ");
-      }
-    }
-    Serial.print("\n");
-  }
-  Serial.print("\n\n\n\n");
-}
-
-void displayWifiSetup() {
+void displayWifiSetup(String ssid, String password, String ip) {
   while(WiFi.status() != WL_CONNECTED)
   {
-    displayWifiCredentials();
+    displayWifiCredentials(ssid, password, ip);
     delay(7000);
-    displayWifiSetupQrCode();
+    displayWifiSetupQrCode("WIFI:S:" + ssid + ";T:WPA2;P:" + password + ";");
     delay(7000);
   }
-}
-
-void displayWifiCredentials() {
-  tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.setTextColor(TFT_DARKCYAN);
-  tft.drawString("WiFi Setup", 2, 5, 4); // Display a title
-  String text = "SSID: " + apSSID + "\n"; 
-  text += "PassW: " + apPassword + "\n"; 
-  text += "IP: " +  WiFi.softAPIP().toString() + "\n"; 
-  tft.setTextColor(TFT_BLACK);
-  uint16_t maxWidth = tft.width();// /2;
-  uint16_t maxHeight = tft.height(); 
-  drawMultilineText(text);
-}
-
-void displayWifiSetupQrCode() {
-  tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.setTextColor(TFT_DARKCYAN);
-  tft.drawString("WiFi Setup", 2, 5, 4); // Display a title
-  // QrCode AP
-  String qrCodeData;
-  int qrCodePixelSize = 3;
-  qrCodeData = "WIFI:S:" + apSSID + ";T:WPA2;P:" + apPassword + ";";
-  QRCode qrCodeAp = createQrCode(qrCodeData);
-  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 70, 35);
-}
-
-void displayConnectingToWifi() {
-  tft.fillScreen(TFT_WHITE); // Clear the screen
-  tft.setTextPadding(tft.width()); // Remove text padding
-  String longText = "Connecting to Wifi...";
-  tft.drawCentreString(longText, tft.width() / 2, tft.height() / 2, 2);
-}
-
-void displayWifiConnected() {
-  String wifiInfo = "Connected to WiFi\n";
-  wifiInfo += "SSID: " + WiFi.SSID() + "\n";
-  wifiInfo += "IP address: " + WiFi.localIP().toString() + "\n";
-
-  tft.fillScreen(TFT_WHITE); // Clear the screen
-  drawMultilineText(wifiInfo);
-}
-
-void displayErrorMessage(String text) {
-  tft.setTextColor(TFT_WHITE);
-  tft.fillScreen(TFT_RED);
-  tft.setTextFont(2);
-  tft.setTextWrap(true, true);
-  tft.println(text);}
-
-void displayMessage(String text) {
-  tft.setTextColor(TFT_BLACK);
-  tft.fillScreen(TFT_WHITE);
-  tft.setTextFont(2);
-  tft.setTextWrap(true, true);
-  tft.println(text);
-}
-
-void displaySuccessMessage(String text) {
-  tft.setTextColor(TFT_BLACK);
-  tft.fillScreen(TFT_WHITE);
-  tft.setTextFont(2);
-  tft.setTextWrap(true, true);
-  tft.println(text);
-}
-
-void displayInfoMessage(String text) {
-  tft.setTextColor(TFT_BLACK);
-  tft.fillScreen(TFT_WHITE);
-  tft.setTextWrap(true, true);
-  tft.println(text);
-}
-
-void drawMultilineText(String text) {
-  // Split the text into lines
-    int lineHeight = tft.fontHeight() * 2; // Adjust line height as needed
-    int y = (tft.height() - lineHeight * 3) / 2; // Calculate vertical position
-
-    // Display each line of text
-    String line;
-    int startPos = 0;
-    int endPos = 0;
-
-    for (int i = 0; i < 5; i++) { // Display up to 5 lines (adjust as needed)
-        endPos = text.indexOf('\n', startPos);
-        if (endPos == -1) {
-            line = text.substring(startPos);
-        } else {
-            line = text.substring(startPos, endPos);
-            startPos = endPos + 1;
-        }
-
-        tft.drawCentreString(line, tft.width() / 2, y, 2);
-        y += lineHeight;
-    }
 }
 
 void onWiFiEvent(WiFiEvent_t event) {
   String message = "";
   switch (event) {
     case SYSTEM_EVENT_STA_GOT_IP:
-      message = "Connected to Wi-Fi, IP address: " + WiFi.localIP().toString();
+      message = "Connected to Wi-Fi, IP address: " + localIp();
       Serial.println(message);
-      displayWifiConnected();
+      displayWifiConnected(savedSSID, localIp());
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
       message = "Wi-Fi disconnected, attempting to reconnect...";
