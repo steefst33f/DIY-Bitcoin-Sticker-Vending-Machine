@@ -1,33 +1,19 @@
 #include <Arduino.h>
-#include <WiFi.h>
-#include <DNSServer.h>
-#include <ESPAsyncWebServer.h>
-#include <Preferences.h>
 
+#include "WiFiSetup.h"
 #include "Display.h"
 
-Preferences preferences;
-
-const String apSSID = "ESP32_AP";
-const String apPassword = "password123";
-IPAddress apIP(192, 168, 4, 1);
-
-String savedSSID = "";
-String savedPassword = "";
-
-DNSServer dnsServer;
-AsyncWebServer server(80);
-
-void getSavedWifiCredentials();
-void setSavedWifiCredentials(String ssid, String password);
-bool connectToWifi(String ssid, String password);
-void startApWifiSetup();
 void displayWifiSetup(String ssid, String password, String ip);
-
 void onWiFiEvent(WiFiEvent_t event);
+void onWifiSetupSucces(String ssid, String localIp);
+void onWifiSetupFailure(String apSsid, String apPassword, String apId);
 
-String localIp() {
-  return WiFi.localIP().toString();
+void onWifiSetupSucces(String ssid, String localIp) {
+  displayWifiConnected(ssid, localIp);
+}
+
+void onWifiSetupFailure(String apSsid, String apPassword, String apId) {
+  displayWifiSetup(apSSID, apPassword, apId);
 }
 
 void setup() {
@@ -38,7 +24,6 @@ void setup() {
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
   initDisplay();
-
   getSavedWifiCredentials();
 
   bool isConnectedToWifi = false;
@@ -49,111 +34,19 @@ void setup() {
   
   if (isConnectedToWifi) {
     displayWifiConnected(savedSSID, localIp());
-    WiFi.onEvent(onWiFiEvent);
+    handleWifiEvents(onWiFiEvent);
   } else {
-    startApWifiSetup();
+    startApWifiSetup(onWifiSetupSucces, onWifiSetupFailure);
     displayWifiSetup(apSSID, apPassword, apIP.toString());
   }
 }
 
 void loop() {
-    dnsServer.processNextRequest();
-}
-
-void getSavedWifiCredentials() {
-  preferences.begin("wifi-config", false);
-  savedSSID = preferences.getString("ssid", "");
-  savedPassword = preferences.getString("password", "");
-  preferences.end();
-}
-
-void setSavedWifiCredentials(String ssid, String password) {
-  preferences.begin("wifi-config", false);
-  savedSSID = preferences.putString("ssid", ssid);
-  savedPassword = preferences.putString("password", password);
-  preferences.end();
-}
-
-bool connectToWifi(String ssid, String password) {
-  // Connect to Wi-Fi
-  int trials = 0;
-  int maxTrials = 3;
-  WiFi.begin(ssid.c_str(), password.c_str());
-  while ((WiFi.status() != WL_CONNECTED)) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-    trials++;
-    if (trials > maxTrials) {
-      Serial.println("Failed to connect to WiFi");
-      return false;
-    }
-  }
-
-  Serial.println("Connected to WiFi");
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
-  Serial.print("IP address: ");
-  Serial.println(localIp());
-  return true;
-}
-
-void startApWifiSetup() {
-   // Create ESP32 AP
-  WiFi.softAP(apSSID, apPassword);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-  dnsServer.start(53, "*", apIP);
-
-  Serial.print("AP IP address: ");
-  Serial.println(WiFi.softAPIP().toString());
-  Serial.print("AP SSID: ");
-  Serial.println(apSSID);
-  Serial.print("AP password: ");
-  Serial.println(apPassword);
-
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    getSavedWifiCredentials();
-    // Serve the HTML page with saved credentials filled in
-    String html = "<html><body>";
-    html += "<h1>Wi-Fi Configuration</h1>";
-    html += "<form action='/configure' method='post'>";
-    html += "<label for='ssid'>SSID (Network Name):</label>";
-    html += "<input type='text' id='ssid' name='ssid' placeholder='Saved SSID' value='" + savedSSID + "'>";
-    html += "<br><br>";
-    html += "<label for='password'>Password:</label>";
-    html += "<input type='password' id='password' name='password' placeholder='Saved Password' value='" + savedPassword + "'>";
-    html += "<br><br>";
-    html += "<input type='submit' value='Save Configuration'>";
-    html += "</form>";
-    html += "</body></html>";
-    request->send(200, "text/html", html);
-  });
-
-  server.onNotFound([](AsyncWebServerRequest* request){
-        Serial.println("**client gets redeirected to: /login ***");
-        request->redirect("http://" + apIP.toString());
-    });
-
-  server.on("/configure", HTTP_POST, [](AsyncWebServerRequest *request){
-    String ssid = request->arg("ssid");
-    String password = request->arg("password");
-
-    setSavedWifiCredentials(ssid, password);
-    getSavedWifiCredentials();
-
-    if (connectToWifi(savedSSID, savedPassword)) {
-      request->send(200, "text/plain", "Configuration successful!");
-      displayWifiConnected(ssid, localIp());
-    } else {
-      request->send(400, "text/plain", "Invalid configuration!");
-      displayWifiSetup(apSSID, apPassword, apIP.toString());
-    }
-  });
-
-  server.begin();
+    processDnsServerRequests();
 }
 
 void displayWifiSetup(String ssid, String password, String ip) {
-  while(WiFi.status() != WL_CONNECTED)
+  while(isWifiStatusConnected() == false)
   {
     displayWifiCredentials(ssid, password, ip);
     delay(7000);
