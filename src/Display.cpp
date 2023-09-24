@@ -51,7 +51,7 @@ void displayWifiSetupQrCode(String qrCodeData) {
   // QrCode AP
   int qrCodePixelSize = 3;
   QRCode qrCodeAp = createQrCode(qrCodeData);
-  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 70, 35);
+  drawQrCode(qrCodeAp, tft, qrCodePixelSize, 70, 32);
 #endif
 }
 
