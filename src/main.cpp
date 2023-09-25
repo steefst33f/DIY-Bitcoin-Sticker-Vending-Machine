@@ -2,9 +2,10 @@
 #include "WiFiSetup.h"
 #include "Display.h"
 
-const char* ssid = "ESP32_AP";
-const char* password = "password123";
-WiFiSetup wifiSetup(ssid, password);
+String ssidPrefix = "LNVending";
+String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);   // Unique SSID based on a prefix and the ESP32's chip ID
+String password = "password123";
+WiFiSetup wifiSetup(ssid.c_str(), password.c_str());
 
 void displayWifiSetup(String ssid, String password, String ip);
 void onWiFiEvent(WiFiEvent_t event);
