@@ -33,9 +33,9 @@ void setup() {
     delay(7000);
   } 
 
-//Once connected start handling Wifi events and display connected
-displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
-wifiSetup.handleWifiEvents(onWiFiEvent);
+  //Once connected start handling Wifi events and display connected
+  displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
+  wifiSetup.handleWifiEvents(onWiFiEvent);
 }
 
 void loop() {
@@ -53,7 +53,7 @@ void onWiFiEvent(WiFiEvent_t event) {
       displayWifiConnected(ssid, localIp);
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
-      message = "Wi-Fi disconnected, attempting to reconnect...";
+      message = "Wi-Fi disconnected\nAttempting to reconnect...";
       Serial.println(message);
       displayErrorMessage(message);
       WiFi.reconnect();

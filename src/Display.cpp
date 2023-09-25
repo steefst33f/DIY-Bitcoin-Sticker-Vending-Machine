@@ -22,7 +22,7 @@ void initDisplay() {
   #ifdef TFT_DISPLAY
     // Setup tft screen
     tft.init();
-    tft.setRotation(1);
+    tft.setRotation(3);
     tft.fillScreen(TFT_WHITE); // Clear the screen
     tft.setTextColor(TFT_BLACK);
   #endif
