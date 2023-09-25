@@ -1,67 +1,56 @@
 #include <Arduino.h>
-
 #include "WiFiSetup.h"
 #include "Display.h"
 
+const char* ssid = "ESP32_AP";
+const char* password = "password123";
+WiFiSetup wifiSetup(ssid, password);
+
 void displayWifiSetup(String ssid, String password, String ip);
 void onWiFiEvent(WiFiEvent_t event);
-void onWifiSetupSucces(String ssid, String localIp);
-void onWifiSetupFailure(String apSsid, String apPassword, String apId);
-
-void onWifiSetupSucces(String ssid, String localIp) {
-  displayWifiConnected(ssid, localIp);
-}
-
-void onWifiSetupFailure(String apSsid, String apPassword, String apId) {
-  displayWifiSetup(apSSID, apPassword, apId);
-}
 
 void setup() {
   Serial.begin(115200);
 
-  // Print some useful debug output - the filename and compilation time
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
   initDisplay();
-  getSavedWifiCredentials();
 
-  bool isConnectedToWifi = false;
-  if (savedSSID != "" && savedPassword != "") {
-    displayConnectingToWifi();
-    isConnectedToWifi = connectToWifi(savedSSID.c_str(), savedPassword.c_str());
+  wifiSetup.begin();
+  String portalSsid = wifiSetup.getPortalSsid();
+  String portalPassword = wifiSetup.getPortalPassword();
+  String portalIp = wifiSetup.getPortalIp();
+  String qrCredentials = "WIFI:S:" + portalSsid + ";T:WPA2;P:" + password + ";";
+
+  //If not setup yet display Portal Access Credentials
+  //Waiting for user to configure Wifi via Portal, will show Portal Access Credentials (Alterneting between QR and text)
+  while(!wifiSetup.isWifiStatusConnected())
+  {
+    displayWifiCredentials(portalSsid, portalPassword, portalIp);
+    delay(7000);
+    displayWifiSetupQrCode(qrCredentials);
+    delay(7000);
   } 
-  
-  if (isConnectedToWifi) {
-    displayWifiConnected(savedSSID, localIp());
-    handleWifiEvents(onWiFiEvent);
-  } else {
-    startApWifiSetup(onWifiSetupSucces, onWifiSetupFailure);
-    displayWifiSetup(apSSID, apPassword, apIP.toString());
-  }
+
+//Once connected start handling Wifi events and display connected
+displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
+wifiSetup.handleWifiEvents(onWiFiEvent);
 }
 
 void loop() {
-    processDnsServerRequests();
-}
-
-void displayWifiSetup(String ssid, String password, String ip) {
-  while(isWifiStatusConnected() == false)
-  {
-    displayWifiCredentials(ssid, password, ip);
-    delay(7000);
-    displayWifiSetupQrCode("WIFI:S:" + ssid + ";T:WPA2;P:" + password + ";");
-    delay(7000);
-  }
+    wifiSetup.processDnsServerRequests();
 }
 
 void onWiFiEvent(WiFiEvent_t event) {
   String message = "";
+  String localIp = wifiSetup.getLocalIp();
+  String ssid = wifiSetup.getConfiguredSsid();
   switch (event) {
     case SYSTEM_EVENT_STA_GOT_IP:
-      message = "Connected to Wi-Fi, IP address: " + localIp();
+      message = "Connected to Wi-Fi, IP address: " + localIp;
       Serial.println(message);
-      displayWifiConnected(savedSSID, localIp());
+      displayWifiConnected(ssid, localIp);
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
       message = "Wi-Fi disconnected, attempting to reconnect...";
