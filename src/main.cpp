@@ -1,11 +1,17 @@
 #include <Arduino.h>
 #include "WiFiSetup.h"
 #include "Display.h"
+#include "NfcAdapter.h"
+#include "PN532.h"
+#include "PN532_I2C.h"
 
 String ssidPrefix = "LNVending";
-String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);   // Unique SSID based on a prefix and the ESP32's chip ID
+String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based on a prefix and the ESP32's chip ID
 String password = "password123";
 WiFiSetup wifiSetup(ssid.c_str(), password.c_str());
+
+PN532_I2C pn532_i2c(Wire);
+NfcAdapter nfc = NfcAdapter(pn532_i2c);
 
 void displayWifiSetup(String ssid, String password, String ip);
 void onWiFiEvent(WiFiEvent_t event);
@@ -37,10 +43,19 @@ void setup() {
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
+
+  nfc.begin();
 }
 
 void loop() {
     wifiSetup.processDnsServerRequests();
+    Serial.println("\nScan a NFC tag\n");
+    if (nfc.tagPresent())
+    {
+        NfcTag tag = nfc.read();
+        tag.print();
+    }
+    delay(5000);
 }
 
 void onWiFiEvent(WiFiEvent_t event) {
