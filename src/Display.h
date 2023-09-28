@@ -6,7 +6,7 @@
 #define Display_h
 
  // #define M5STACK // comment out if not using M5Stack
-  #define TTGO // comment out if not using TTGO
+  // #define TTGO // comment out if not using TTGO
   // #define ILI9431_240x320 // comment out if not using ILI9431 240x320
 
   #ifdef ILI9431_240x320

@@ -7,10 +7,11 @@
   TFT_eSPI tft = TFT_eSPI();
   int qrScreenBrightness = 180;
   uint16_t qrScreenBgColour = tft.color565(qrScreenBrightness, qrScreenBrightness, qrScreenBrightness);  
-#endif
 
-QRCode createQrCode(String data);
-void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xPosition, int yPosition);
+  QRCode createQrCode(String data);
+  void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xPosition, int yPosition);
+
+#endif
 
 void clearDisplay(uint16_t color){
   #ifdef TFT_DISPLAY
@@ -55,8 +56,8 @@ void displayWifiSetupQrCode(String qrCodeData) {
 #endif
 }
 
-QRCode createQrCode(String data) {
 #ifdef TFT_DISPLAY
+QRCode createQrCode(String data) {
   Serial.println(data);
   const char *qrDataChar = data.c_str();
   QRCode qrCode;
@@ -64,11 +65,11 @@ QRCode createQrCode(String data) {
 
   qrcode_initText(&qrCode, qrcodeData, 4, 0, qrDataChar);
   return qrCode;
-#endif
 }
+#endif
 
-void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOffSet) {
 #ifdef TFT_DISPLAY
+void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOffSet) {
   Serial.print("\n\n\n\n");
 
   for (uint8_t y = 0; y < qrCode.size; y++) {
@@ -86,8 +87,8 @@ void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOf
     Serial.print("\n");
   }
   Serial.print("\n\n\n\n");
-#endif
 }
+#endif
 
 void displayConnectingToWifi() {
 #ifdef TFT_DISPLAY
