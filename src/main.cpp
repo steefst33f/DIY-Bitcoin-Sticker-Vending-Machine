@@ -14,6 +14,7 @@ PN532_I2C pn532_i2c(Wire);
 NfcAdapter nfc = NfcAdapter(pn532_i2c);
 
 void displayWifiSetup(String ssid, String password, String ip);
+String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
 void onWiFiEvent(WiFiEvent_t event);
 
 void setup() {
@@ -50,13 +51,40 @@ void setup() {
 void loop() {
     wifiSetup.processDnsServerRequests();
     Serial.println("\nScan a NFC tag\n");
-    if (nfc.tagPresent())
-    {
+    if (nfc.tagPresent()) {
         NfcTag tag = nfc.read();
         tag.print();
+      
+      if(tag.hasNdefMessage()) {
+        NdefMessage message = tag.getNdefMessage();
+
+        // If you have more than 1 Message then it wil cycle through them
+        int recordCount = message.getRecordCount();
+        for(int i = 0; i < recordCount; i++) {
+          Serial.println("\nNDEF Record " + String(i+1));
+          NdefRecord record = message.getRecord(i);
+
+          int payloadLength = record.getPayloadLength();
+          byte payload[record.getPayloadLength()];
+          record.getPayload(payload);
+          String string = convertToStringFromBytes(payload, payloadLength);
+          
+          Serial.println("Payload Length = " + String(payloadLength));
+          Serial.println("  Information (as String): " + string);
+        }
+      }
     }
     delay(5000);
 }
+
+String convertToStringFromBytes(byte dataArray[], int sizeOfArray) {
+  String stringOfData = "";
+  for(int byteIndex = 0; byteIndex < sizeOfArray; byteIndex++) {
+    stringOfData += (char)dataArray[byteIndex];
+  }
+  return stringOfData;
+}
+
 
 void onWiFiEvent(WiFiEvent_t event) {
   String message = "";
