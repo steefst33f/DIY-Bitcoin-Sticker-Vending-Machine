@@ -9,6 +9,8 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
+#include <ESP32Servo.h>
+
 struct Withdrawal {
     String tag;
     String callback;
@@ -28,6 +30,12 @@ struct Invoice {
 bool down = false;
 bool paid = false;
 
+//GPIO
+int servoPin = 27;
+int vendorModePin = 33;
+int fillDispencerButton = 0;
+int emptyDispencerButton = 35;
+
 // Configurable variables
 String amount = "210"; //Amount in Sats
 String lnbitsServer = "legend.lnbits.com";
@@ -46,25 +54,59 @@ WiFiSetup wifiSetup(ssid.c_str(), password.c_str());
 PN532_I2C pn532_i2c(Wire);
 NfcAdapter nfc = NfcAdapter(pn532_i2c);
 
+Servo servo;
+
 void displayWifiSetup(String ssid, String password, String ip);
 String scannedLnUrlFromNfcTag();
 String decode(String lnUrl);
-String getLNURL(const String string);
+String getUrl(String string);
 String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
 void onWiFiEvent(WiFiEvent_t event);
 
+void scanForLnUrlWithdrawNfcPayment();
 bool withdraw(String callback, String k1, String pr);
 Withdrawal getWithdrawal(String uri);
 bool isAmountInWithdrawableBounds(int amount, int minWithdrawable, int maxWithdrawable);
 Invoice getInvoice(String description);
 bool checkInvoice(String invoiceId);
 
+void dispense();
+void fillDispenser();
+void emptyDispenser();
 
 void setup() {
   Serial.begin(115200);
 
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
+
+  //setup dispenser
+  servo.attach(servoPin);
+  pinMode(fillDispencerButton, INPUT);
+  pinMode(emptyDispencerButton, INPUT);
+
+  int timer = 0;
+  while(timer < 2000) {
+    //Setup vendor mode
+    Serial.println("vendorPin: " + String(touchRead(vendorModePin)));
+    if(touchRead(vendorModePin) < 50) {
+      Serial.println(F("In Vendor Fill/Empty mode"));
+      Serial.println(F("(Restart Vending Machine to exit)"));
+      // displayvendorMode();
+
+      ////Dispenser buttons scanning////
+      while (true) {
+        if (digitalRead(fillDispencerButton) == LOW) {
+          fillDispenser();
+        } else if(digitalRead(emptyDispencerButton) == LOW) {
+          emptyDispenser();
+        }
+        delay(500);
+      }  
+    }
+    timer = timer + 100;
+    delay(300);
+  }
 
   initDisplay();
 
@@ -93,71 +135,88 @@ void setup() {
 
 void loop() {
     wifiSetup.processDnsServerRequests();
-    String lnUrl = scannedLnUrlFromNfcTag();
-    String decodedLnUrl = decode(lnUrl);
-    Withdrawal withdrawal = getWithdrawal(decodedLnUrl);
-
-    if(withdrawal.tag != "withdrawRequest") {
-      Serial.println(F("Scanned tag is not LNURL withdraw"));
-      Serial.println(F("Present a tag with a LNURL withdraw on it"));
-      // debugDisplayText(F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
-      return;
-    }
-
-    Serial.println(F("Scanned tag is a LNURL withdrawal request!"));
-    if(!isAmountInWithdrawableBounds(amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
-      Serial.println("The requested amount: " + amount + " is not within this LNURL withdrawal bounds");
-      Serial.println(F("Amount not in bounds, can't withdraw from presented voucher."));
-      // debugDisplayText(F("Amount not in bounds, can't withdraw from presented voucher."));
-      return;
-    }
-
-    Serial.println("The requested amount: " + amount);
-    Serial.println(F(" is within this LNURL withdrawal bounds"));
-    Serial.println(F("Continue payment flow by creating invoice"));
-
-    Serial.println(F("Will create invoice to request withrawal..."));
-    // debugDisplayText("Creating invoice..");
-    Invoice invoice = getInvoice("BitcoinSwitch QR");
-    Serial.println("invoice.paymentHash = " + invoice.paymentHash); 
-    Serial.println("invoice.paymentRequest = " + invoice.paymentRequest);
-    Serial.println("invoice.checkingId = " + invoice.checkingId);  
-    Serial.println("invoice.lnurlResponse = " + invoice.lnurlResponse); 
-    Serial.println(F(""));
-
-    if(invoice.paymentRequest == "") {
-      Serial.println(F("Failed to create invoice"));
-      // debugDisplayText(F("Failed to create invoice")); 
-      return;
-    }
-
-    bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
-    if(!success) {
-      Serial.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
-      // debugDisplayText(F("Failed to request withdrawal invoice"));
-    } else {
-      Serial.println(F("Withdrawal request successfull!"));
-      //TODO: Check if open invoice is paid
-      bool isPaid = checkInvoice(invoice.checkingId);
-
-      int numberOfTries = 1;
-      while(!isPaid && (numberOfTries < 3)) {
-        delay(2000);
-        isPaid = checkInvoice(invoice.checkingId);
-        numberOfTries++;
-      }
-
-      if(!isPaid) {
-        Serial.println(F("Could not confirm withdrawal, the invoice has not been payed in time"));
-        // debugDisplayText("Could not confirm withdrawal, transaction cancelled");
-        return;
-      }
-      Serial.println(F("Withdrawal successfull, invoice is payed!"));
-      // debugDisplayText(F("Withdrawal succeeded!! Thank you!"));
-      paid = true;
-    }
-
+    scanForLnUrlWithdrawNfcPayment();
     delay(5000);  
+}
+
+void scanForLnUrlWithdrawNfcPayment() {
+  String lnUrl = scannedLnUrlFromNfcTag();
+  if (lnUrl == "") { return; };
+  
+  log_e();
+  String decodedLnUrl = decode(lnUrl);
+  if (decodedLnUrl == "") { return; };
+
+  log_e();
+
+  Withdrawal withdrawal = getWithdrawal(decodedLnUrl);
+
+  log_e();
+
+  if(withdrawal.tag != "withdrawRequest") {
+    Serial.println(F("Scanned tag is not LNURL withdraw"));
+    Serial.println(F("Present a tag with a LNURL withdraw on it"));
+    // debugDisplayText(F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
+    return;
+  }
+
+  Serial.println(F("Scanned tag is a LNURL withdrawal request!"));
+  if(!isAmountInWithdrawableBounds(amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
+    Serial.println("The requested amount: " + amount + " is not within this LNURL withdrawal bounds");
+    Serial.println(F("Amount not in bounds, can't withdraw from presented voucher."));
+    // debugDisplayText(F("Amount not in bounds, can't withdraw from presented voucher."));
+    return;
+  }
+
+  Serial.println("The requested amount: " + amount);
+  Serial.println(F(" is within this LNURL withdrawal bounds"));
+  Serial.println(F("Continue payment flow by creating invoice"));
+
+  Serial.println(F("Will create invoice to request withrawal..."));
+  // debugDisplayText("Creating invoice..");
+  Invoice invoice = getInvoice("BitcoinSwitch QR");
+  Serial.println("invoice.paymentHash = " + invoice.paymentHash); 
+  Serial.println("invoice.paymentRequest = " + invoice.paymentRequest);
+  Serial.println("invoice.checkingId = " + invoice.checkingId);  
+  Serial.println("invoice.lnurlResponse = " + invoice.lnurlResponse); 
+  Serial.println(F(""));
+
+  if(invoice.paymentRequest == "") {
+    Serial.println(F("Failed to create invoice"));
+    // debugDisplayText(F("Failed to create invoice")); 
+    return;
+  }
+
+  bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
+  if(!success) {
+    Serial.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
+    // debugDisplayText(F("Failed to request withdrawal invoice"));
+  } else {
+    Serial.println(F("Withdrawal request successfull!"));
+    //TODO: Check if open invoice is paid
+    bool isPaid = checkInvoice(invoice.checkingId);
+
+    int numberOfTries = 1;
+    while(!isPaid && (numberOfTries < 3)) {
+      delay(2000);
+      isPaid = checkInvoice(invoice.checkingId);
+      numberOfTries++;
+    }
+
+    if(!isPaid) {
+      Serial.println(F("Could not confirm withdrawal, the invoice has not been payed in time"));
+      // debugDisplayText("Could not confirm withdrawal, transaction cancelled");
+      return;
+    }
+    Serial.println(F("Withdrawal successfull, invoice is payed!"));
+    // debugDisplayText(F("Withdrawal succeeded!! Thank you!"));
+    paid = true;
+    dispense();
+  }
+
+  payReq = "";
+  dataId = "";
+  paid = false;
 }
 
 String decode(String lnUrl) {
@@ -165,12 +224,18 @@ String decode(String lnUrl) {
   client.setInsecure();
   down = false;
 
+  if(!lnUrl.startsWith("LNURL")) {
+    log_e("found LNURL");
+    return lnUrl;
+  }
+
   if(!client.connect(lnbitsServer.c_str(), 443)) {
     Serial.println("Client couldn't connect to LNBitsServer to decode LNURL");
     down = true;
     return "";   
   }
 
+  log_e();
   String body = "{\"data\": \"" + lnUrl + "\"}";
   String url = "/api/v1/payments/decode";
   String request = String("POST ") + url + " HTTP/1.1\r\n" +
@@ -201,6 +266,7 @@ String decode(String lnUrl) {
     return "";
   }
   
+  log_e();
   const char* domain = doc["domain"]; 
   Serial.println("decodedLNURL: " + String(domain));
   return domain;
@@ -232,62 +298,16 @@ String scannedLnUrlFromNfcTag() {
         Serial.println("Payload Length = " + String(payloadLength));
         Serial.println("  Information (as String): " + stringRecord);
 
-        String lnUrl = getLNURL(stringRecord);
+        String lnUrl = getUrl(stringRecord);
         if (lnUrl != "") {
-          Serial.println("Found LNURL!");
+          Serial.println("Found LNURL or lnurlw://! " + lnUrl);
+          log_e();
           return lnUrl;
         }
       }
     }
   }
   return "";
-}
-
-/// LNURLw functions
-String getLNURL(const String string) {
-  Serial.println("bool islLNURL(" + string + ")");
-  String editedString = string;
-
-  if(string.startsWith("lnurlw://")) {
-    Serial.println("found lightning URI with LNURL: " + string);
-    editedString.remove(0,8);
-    Serial.println(string);
-    return editedString;
-  }
- 
-  editedString.trim();
-  editedString.toUpperCase();
-
-  if(editedString.startsWith("LNURL")) {
-    Serial.println(F("found LNURL"));
-    return editedString;
-  } else if(editedString.startsWith("LIGHTNING:LNURL")) {
-    Serial.println("found lightning URI with LNURL: " + editedString);
-    editedString.remove(0,10);
-    return editedString;     
-  } else {
-    Serial.println(F("string is no LNURL"));
-    return "";
-  }
-}
-
-String convertToStringFromBytes(byte dataArray[], int sizeOfArray) {
-  String stringOfData = "";
-  for(int byteIndex = 0; byteIndex < sizeOfArray; byteIndex++) {
-    stringOfData += (char)dataArray[byteIndex];
-  }
-  return stringOfData;
-
-
-  // // Convert the byte array to a char array
-  // char charArray[sizeOfArray + 1];  // +1 to leave space for the null terminator
-  // for (int i = 0; i < sizeOfArray; i++) {
-  //   charArray[i] = (char)dataArray[i];
-  // }
-  // charArray[sizeOfArray] = '\0';  // Null-terminate the char array
-
-  // // Convert the char array to an Arduino String
-  // return String(charArray);
 }
 
 void onWiFiEvent(WiFiEvent_t event) {
@@ -390,6 +410,7 @@ void onWiFiEvent(WiFiEvent_t event) {
 }
 
 Withdrawal getWithdrawal(String uri) {
+  log_e("uri: %s", uri);
   WiFiClientSecure client;
   client.setInsecure();
   down = false;
@@ -397,7 +418,7 @@ Withdrawal getWithdrawal(String uri) {
   String host = uriComponents.host.c_str();
 
   if(!client.connect(host.c_str(), 443)) {
-    Serial.println("Client couldn't connect to service to get Withdrawl");
+    Serial.printf("Client couldn't connect to service: %s to get Withdrawl", host.c_str());
     down = true;
     return {};   
   }
@@ -573,3 +594,79 @@ bool checkInvoice(String invoiceId) {
   bool isPaid = doc["paid"];
   return isPaid;
 }
+
+/// Servo Code
+//////// Servo ///////
+void dispense() {
+  Serial.println(F("Vending Machine dispense START!"));
+  servo.writeMicroseconds(1000); // rotate clockwise (from the buyers point of view)
+  delay(1920);
+  servo.writeMicroseconds(1500);  // stop
+  Serial.println(F("Vending Machine dispense STOP!!"));
+}
+
+void fillDispenser() {
+  Serial.println(F("Fill dispenser!!"));
+  // let dispencer slowly turn in the fillup direction, so the vender can empty the dispendser with new products:
+  servo.writeMicroseconds(2000); // rotate counter clockwise (from the buyers point of view)
+  delay(1590);
+  servo.writeMicroseconds(1500);  // stop
+  Serial.println(F("Done!"));
+}
+
+void emptyDispenser() {
+  Serial.println(F("Empty dispenser!!"));
+  // let dispencer slowly turn in dispence direction, so the vender can empty all products from dispenser:
+  servo.writeMicroseconds(1000); // rotate clockwise (from the buyers point of view)
+  delay(1920);
+  servo.writeMicroseconds(1500);  // stop
+  Serial.println(F("Done!"));
+}
+
+String convertToStringFromBytes(uint8_t dataArray[], int sizeOfArray) {
+  String stringOfData = "";
+  for(int byteIndex = 0; byteIndex < sizeOfArray; byteIndex++) {
+    stringOfData += (char)dataArray[byteIndex];
+  }
+  return stringOfData;
+}
+
+String getUrl(String string) {
+  Serial.println(string);
+
+  //Find the index of "://"
+  int index = string.indexOf("://");
+  
+  // If "://" is found remove the uri from the string
+  if (index != -1) {
+    Serial.println(string.substring(0,index));
+    string.remove(0,index + 3);
+    Serial.println(string);
+  }
+
+  // If the string starts with "Lightning:"" remove it
+  String uppercaseString = string;
+  uppercaseString.toUpperCase();
+  if (uppercaseString.startsWith("LIGHTNING:")) {
+      
+    Serial.println("string.startsWith(LIGHTNING:");
+    Serial.println(string);
+    string.remove(0,10);
+    Serial.println("remove(0,10)");
+    Serial.println(string);
+  }
+
+  uppercaseString = string;
+  uppercaseString.toUpperCase();
+// If LNURL, decode it in uppercase to Url
+  if (uppercaseString.startsWith("LNURL")) {
+    Serial.println(uppercaseString);
+    Serial.println("Lets decode it ..\n");
+    string = decode(uppercaseString);
+  }
+ 
+  Serial.println("return string: \n");
+  Serial.println(string);
+  return string;
+}
+
