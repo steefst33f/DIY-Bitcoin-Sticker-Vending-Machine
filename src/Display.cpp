@@ -174,3 +174,43 @@ void drawMultilineText(String text) {
     }
 #endif
 }
+
+void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, int textSize /* = 3*/, int x /* = 0*/, int y /* = 0*/) {
+  #ifdef TFT_DISPLAY
+    clearDisplay(backgroundColor);
+    tft.setCursor(x, y);
+    tft.setTextSize(textSize);
+    tft.setTextColor(textColor);
+    tft.setTextWrap(true);
+    tft.println(text);
+  #endif
+  // #if DEBUG == 1
+  Serial.println(text);
+  // #endif
+}
+
+void setDisplayInfoText(String text) {
+  #if defined(TTGO)
+      setDisplayText(text, BLACK, WHITE, 2, 0, 70);      
+  #endif 
+}
+
+void setDisplaySuccessText(String text) {
+  #if defined(TTGO)
+      setDisplayText(text, GREEN, WHITE, 2, 0, 70);      
+  #endif 
+}
+
+void setDisplayErrorText(String text) {
+  #if defined(TTGO)
+      setDisplayText(text, RED, WHITE, 2, 0, 70);      
+  #endif 
+}
+
+void debugDisplayText(String text) {
+  // #if DEBUG == 1
+    #if defined(TTGO)
+      setDisplayText(text, GREEN, BLACK);
+    #endif
+  // #endif
+}

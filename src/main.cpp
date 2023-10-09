@@ -1,9 +1,7 @@
 #include <Arduino.h>
 #include "WiFiSetup.h"
 #include "Display.h"
-#include "NfcAdapter.h"
-#include "PN532.h"
-#include "PN532_I2C.h"
+#include "Nfc.h"
 #include "UriComponents.h"
 
 #include <HTTPClient.h>
@@ -51,19 +49,24 @@ String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based
 String password = "password123";
 WiFiSetup wifiSetup(ssid.c_str(), password.c_str());
 
-PN532_I2C pn532_i2c(Wire);
-NfcAdapter nfc = NfcAdapter(pn532_i2c);
-
+Nfc nfc = Nfc();
 Servo servo;
 
 void displayWifiSetup(String ssid, String password, String ip);
-String scannedLnUrlFromNfcTag();
+// String scannedLnUrlFromNfcTag();
 String decode(String lnUrl);
 String getUrl(String string);
 String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
 void onWiFiEvent(WiFiEvent_t event);
 
-void scanForLnUrlWithdrawNfcPayment();
+// Nfc callback handlers
+void onNfcModuleConnected();
+void onStartScanningTag();
+void onReadingTag(/*ISO14443aTag tag*/);
+void onReadTagRecord(String stringRecord);
+void onFailure(Nfc::Error error);
+
+void startLnUrlWithdrawFlow(String url);
 bool withdraw(String callback, String k1, String pr);
 Withdrawal getWithdrawal(String uri);
 bool isAmountInWithdrawableBounds(int amount, int minWithdrawable, int maxWithdrawable);
@@ -130,33 +133,39 @@ void setup() {
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
 
+  //setup nfc callback handlers
+  nfc.setOnNfcModuleConnected(onNfcModuleConnected);
+  nfc.setOnStartScanningTag(onStartScanningTag);
+  nfc.setOnReadMessageRecord(onReadTagRecord);
+  nfc.setOnReadingTag(onReadingTag);
+  nfc.setOnFailure(onFailure);
   nfc.begin();
 }
 
 void loop() {
     wifiSetup.processDnsServerRequests();
-    scanForLnUrlWithdrawNfcPayment();
+    // scanForLnUrlWithdrawNfcPayment();
+    if (nfc.isNfcModuleAvailable()) {
+      nfc.scanForTag();
+    }
     delay(5000);  
 }
 
-void scanForLnUrlWithdrawNfcPayment() {
-  String lnUrl = scannedLnUrlFromNfcTag();
-  if (lnUrl == "") { return; };
-  
-  log_e();
-  String decodedLnUrl = decode(lnUrl);
-  if (decodedLnUrl == "") { return; };
+void startLnUrlWithdrawFlow(String url) {
+
+  String lnUrl = getUrl(url);
+  if (lnUrl == "") { return; }
 
   log_e();
-
-  Withdrawal withdrawal = getWithdrawal(decodedLnUrl);
+  // Serial.println("decodedLnUrl: " + lnUrl);
+  Withdrawal withdrawal = getWithdrawal(lnUrl);
 
   log_e();
 
   if(withdrawal.tag != "withdrawRequest") {
     Serial.println(F("Scanned tag is not LNURL withdraw"));
     Serial.println(F("Present a tag with a LNURL withdraw on it"));
-    // debugDisplayText(F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
+    debugDisplayText(F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
     return;
   }
 
@@ -164,7 +173,7 @@ void scanForLnUrlWithdrawNfcPayment() {
   if(!isAmountInWithdrawableBounds(amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
     Serial.println("The requested amount: " + amount + " is not within this LNURL withdrawal bounds");
     Serial.println(F("Amount not in bounds, can't withdraw from presented voucher."));
-    // debugDisplayText(F("Amount not in bounds, can't withdraw from presented voucher."));
+    debugDisplayText(F("Amount not in bounds, can't withdraw from presented voucher."));
     return;
   }
 
@@ -173,7 +182,7 @@ void scanForLnUrlWithdrawNfcPayment() {
   Serial.println(F("Continue payment flow by creating invoice"));
 
   Serial.println(F("Will create invoice to request withrawal..."));
-  // debugDisplayText("Creating invoice..");
+  debugDisplayText("Creating invoice..");
   Invoice invoice = getInvoice("BitcoinSwitch QR");
   Serial.println("invoice.paymentHash = " + invoice.paymentHash); 
   Serial.println("invoice.paymentRequest = " + invoice.paymentRequest);
@@ -183,21 +192,24 @@ void scanForLnUrlWithdrawNfcPayment() {
 
   if(invoice.paymentRequest == "") {
     Serial.println(F("Failed to create invoice"));
-    // debugDisplayText(F("Failed to create invoice")); 
+    debugDisplayText(F("Failed to create invoice")); 
     return;
   }
+
+  debugDisplayText(F("Requesting withdrawal..")); 
 
   bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
   if(!success) {
     Serial.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
-    // debugDisplayText(F("Failed to request withdrawal invoice"));
+    debugDisplayText(F("Failed to request withdrawal invoice"));
   } else {
     Serial.println(F("Withdrawal request successfull!"));
     //TODO: Check if open invoice is paid
     bool isPaid = checkInvoice(invoice.checkingId);
 
     int numberOfTries = 1;
-    while(!isPaid && (numberOfTries < 3)) {
+    debugDisplayText(F("Waiting for payment confirmation..")); 
+    while(!isPaid && (numberOfTries < 5)) {
       delay(2000);
       isPaid = checkInvoice(invoice.checkingId);
       numberOfTries++;
@@ -205,11 +217,11 @@ void scanForLnUrlWithdrawNfcPayment() {
 
     if(!isPaid) {
       Serial.println(F("Could not confirm withdrawal, the invoice has not been payed in time"));
-      // debugDisplayText("Could not confirm withdrawal, transaction cancelled");
+      debugDisplayText("Could not confirm withdrawal, transaction cancelled");
       return;
     }
     Serial.println(F("Withdrawal successfull, invoice is payed!"));
-    // debugDisplayText(F("Withdrawal succeeded!! Thank you!"));
+    debugDisplayText(F("Withdrawal succeeded!! Thank you!"));
     paid = true;
     dispense();
   }
@@ -267,47 +279,7 @@ String decode(String lnUrl) {
   }
   
   log_e();
-  const char* domain = doc["domain"]; 
-  Serial.println("decodedLNURL: " + String(domain));
-  return domain;
-}
-
-String scannedLnUrlFromNfcTag() {
-  Serial.println("\nScan a NFC tag\n");
-  if (nfc.tagPresent()) {
-    Serial.println("Found Tag!");
-    NfcTag tag = nfc.read();
-    tag.print();
-    
-    if(tag.hasNdefMessage()) {
-      Serial.println("Found NDEF Message!");
-      NdefMessage message = tag.getNdefMessage();
-
-      // If more than 1 Message then it wil cycle through them untill it finds a LNURL
-      int recordCount = message.getRecordCount();
-      for(int i = 0; i < recordCount; i++) {
-        Serial.println("\nNDEF Record " + String(i+1));
-        NdefRecord record = message.getRecord(i);
-
-        int payloadLength = record.getPayloadLength();
-        byte payload[record.getPayloadLength()];
-        record.getPayload(payload);
-        //+1 to skip first byte of payload, which is always null
-        String stringRecord = convertToStringFromBytes(payload+1, payloadLength-1);
-        
-        Serial.println("Payload Length = " + String(payloadLength));
-        Serial.println("  Information (as String): " + stringRecord);
-
-        String lnUrl = getUrl(stringRecord);
-        if (lnUrl != "") {
-          Serial.println("Found LNURL or lnurlw://! " + lnUrl);
-          log_e();
-          return lnUrl;
-        }
-      }
-    }
-  }
-  return "";
+  return doc["domain"];
 }
 
 void onWiFiEvent(WiFiEvent_t event) {
@@ -410,24 +382,26 @@ void onWiFiEvent(WiFiEvent_t event) {
 }
 
 Withdrawal getWithdrawal(String uri) {
-  log_e("uri: %s", uri);
+  log_e();
+  Serial.println("uri: " + uri);
   WiFiClientSecure client;
   client.setInsecure();
   down = false;
   UriComponents uriComponents = UriComponents::Parse(uri.c_str());
   String host = uriComponents.host.c_str();
 
+  Serial.println("host: " + host);
+
   if(!client.connect(host.c_str(), 443)) {
-    Serial.printf("Client couldn't connect to service: %s to get Withdrawl", host.c_str());
+    Serial.println("Client couldn't connect to service: " + host + " to get Withdrawl");
     down = true;
-    return {};   
+    // return {};   
   }
   
-  Serial.println(F("xxxxx!!!!!!"));
   String request = String("GET ") + uri + " HTTP/1.0\r\n" +
     "User-Agent: ESP32\r\n" +
     "accept: text/html\r\n" +
-    "Connection: close\r\n\r\n";
+    "Host: " + host + "\r\n\r\n";
   Serial.println(request);
   client.print(request);
 
@@ -535,7 +509,7 @@ bool withdraw(String callback, String k1, String pr) {
   String request = (String("GET ") + callback + "?" + requestParameters + " HTTP/1.0\r\n" +
                 "User-Agent: ESP32\r\n" +
                 "accept: text/plain\r\n" +
-                "Connection: close\r\n\r\n");
+                "Host: " + host + "\r\n\r\n");
   client.print(request);
   Serial.println(request);
   
@@ -664,9 +638,67 @@ String getUrl(String string) {
     Serial.println("Lets decode it ..\n");
     string = decode(uppercaseString);
   }
+
+  // make sure it has a protocol, otherwise use https:// 
+  UriComponents uriComponents = UriComponents::Parse(string.c_str());
+  String host = uriComponents.host.c_str();
+  String protocol = uriComponents.protocol.c_str();
+  if (protocol == "") {
+    protocol = "https://";
+    string = protocol + string;
+  }
  
   Serial.println("return string: \n");
   Serial.println(string);
   return string;
+}
+
+//NFC callback handlers
+void onNfcModuleConnected() {
+  debugDisplayText("NFC payment available!");
+}
+
+void onStartScanningTag() {
+  debugDisplayText("Scanning for NFC Card..");
+}
+
+void onReadingTag(/*ISO14443aTag tag*/) {
+  debugDisplayText("Reading NFC Card..");
+  // tag.print();
+}
+
+void onReadTagRecord(String stringRecord) {
+  debugDisplayText("Read NFC record: \n" + stringRecord);
+  startLnUrlWithdrawFlow(stringRecord);
+}
+
+void onFailure(Nfc::Error error) {
+  if (error == Nfc::Error::scanFailed) {
+      debugDisplayText("No NFC card detected yet..");
+      return;
+  }
+
+  String errorString;
+  switch (error) {
+    case Nfc::Error::connectionModuleFailed:
+      errorString = "Not connected to NFC module";
+      break;
+    case Nfc::Error::scanFailed:
+      errorString = "Failed ";
+      break;
+    case Nfc::Error::readFailed:
+      errorString = "readFailed";
+      break;
+    case Nfc::Error::identifyFailed:
+      errorString = "identifyFailed";
+      break;
+    case Nfc::Error::releaseFailed:
+      errorString = "releaseFailed";
+      break;
+    default:
+      errorString = "unknow error";
+      break;
+  }
+  setDisplayErrorText("NFC payment Failed!\n Error: !" + errorString);
 }
 

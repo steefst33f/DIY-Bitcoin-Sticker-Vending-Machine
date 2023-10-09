@@ -45,5 +45,10 @@
     void displayInfoMessage(String text);
     void displaySuccessMessage(String text);
     void drawMultilineText(String text);
+    void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, int textSize = 2, int x = 0, int y = 0);
+    void setDisplayInfoText(String text);
+    void setDisplaySuccessText(String text);
+    void setDisplayErrorText(String text);
+    void debugDisplayText(String text);
 
 #endif
