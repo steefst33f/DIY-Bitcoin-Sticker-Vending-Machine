@@ -29,6 +29,21 @@ void initDisplay() {
   #endif
 }
 
+void displayVendorMode() {
+#ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawString("Vendor Mode", 2, 5, 4);
+  String text = "Top button: Refill\n"; 
+  text += "Bottom button: Dispense\n\n"; 
+  text += "Reset to exit\n"; 
+  tft.setTextColor(TFT_BLACK);
+  uint16_t maxWidth = tft.width();// /2;
+  uint16_t maxHeight = tft.height(); 
+  drawMultilineText(text);
+#endif
+}
+
 void displayWifiCredentials(String apSSID, String apPassword, String apIp) {
 #ifdef TFT_DISPLAY
   clearDisplay(TFT_WHITE); 
@@ -92,8 +107,9 @@ void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOf
 
 void displayConnectingToWifi() {
 #ifdef TFT_DISPLAY
-  clearDisplay(TFT_WHITE); // Clear the screen
-  tft.setTextPadding(tft.width()); // Remove text padding
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawString("WiFi Setup", 2, 5, 4);   tft.setTextPadding(tft.width()); // Remove text padding
   String longText = "Connecting to Wifi...";
   tft.drawCentreString(longText, tft.width() / 2, tft.height() / 2, 2);
 #endif
@@ -101,19 +117,19 @@ void displayConnectingToWifi() {
 
 void displayWifiConnected(String ssid, String localIp) {
 #ifdef TFT_DISPLAY
-  String wifiInfo = "Connected to WiFi\n";
-  wifiInfo += "SSID: " + ssid + "\n";
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawString("WiFi Connected", 2, 5, 4); 
+  String wifiInfo = "SSID: " + ssid + "\n";
   wifiInfo += "IP address: " + localIp + "\n";
-
-  tft.fillScreen(TFT_WHITE); // Clear the screen
   drawMultilineText(wifiInfo);
 #endif
 }
 
 void displayErrorMessage(String text) {
 #ifdef TFT_DISPLAY
+  clearDisplay(TFT_RED); 
   tft.setTextColor(TFT_WHITE);
-  tft.fillScreen(TFT_RED);
   tft.setTextFont(2);
   tft.setTextWrap(true, true);
   tft.println(text);
@@ -122,8 +138,8 @@ void displayErrorMessage(String text) {
 
 void displayMessage(String text) {
 #ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
   tft.setTextColor(TFT_BLACK);
-  tft.fillScreen(TFT_WHITE);
   tft.setTextFont(2);
   tft.setTextWrap(true, true);
   tft.println(text);
@@ -132,8 +148,8 @@ void displayMessage(String text) {
 
 void displaySuccessMessage(String text) {
 #ifdef TFT_DISPLAY
-  tft.setTextColor(TFT_BLACK);
-  tft.fillScreen(TFT_WHITE);
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(TFT_DARKGREEN);
   tft.setTextFont(2);
   tft.setTextWrap(true, true);
   tft.println(text);
@@ -142,8 +158,8 @@ void displaySuccessMessage(String text) {
 
 void displayInfoMessage(String text) {
 #ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
   tft.setTextColor(TFT_BLACK);
-  tft.fillScreen(TFT_WHITE);
   tft.setTextWrap(true, true);
   tft.println(text);
 #endif

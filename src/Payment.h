@@ -22,6 +22,7 @@ struct Invoice {
 };
 
 bool payWithLnUrlWithdrawl(String url);
+
 bool withdraw(String callback, String k1, String pr);
 Withdrawal getWithdrawal(String uri);
 bool isAmountInWithdrawableBounds(int amount, int minWithdrawable, int maxWithdrawable);

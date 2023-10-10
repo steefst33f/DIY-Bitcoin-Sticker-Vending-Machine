@@ -37,6 +37,7 @@
   #endif
 
     void initDisplay();
+    void displayVendorMode();
     void displayWifiCredentials(String apSSID, String apPassword, String apIp);
     void displayWifiSetupQrCode(String qrCodeData);
     void displayConnectingToWifi();

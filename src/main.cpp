@@ -46,6 +46,8 @@ void setup() {
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
+  initDisplay();
+  
   //setup dispenser
   servo.attach(servoPin);
   pinMode(fillDispencerButton, INPUT);
@@ -58,7 +60,7 @@ void setup() {
     if(touchRead(vendorModePin) < 50) {
       Serial.println(F("In Vendor Fill/Empty mode"));
       Serial.println(F("(Restart Vending Machine to exit)"));
-      // displayvendorMode();
+      displayVendorMode();
 
       ////Dispenser buttons scanning////
       while (true) {
@@ -73,8 +75,6 @@ void setup() {
     timer = timer + 100;
     delay(300);
   }
-
-  initDisplay();
 
   wifiSetup.begin();
   String portalSsid = wifiSetup.getPortalSsid();
@@ -107,7 +107,6 @@ void setup() {
 
 void loop() {
     wifiSetup.processDnsServerRequests();
-    // scanForLnUrlWithdrawNfcPayment();
     if (nfc.isNfcModuleAvailable()) {
       nfc.scanForTag();
     }

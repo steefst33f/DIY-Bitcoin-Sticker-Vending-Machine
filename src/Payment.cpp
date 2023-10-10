@@ -319,8 +319,6 @@ String getUrl(String string) {
     string = protocol + string;
   }
  
-  Serial.println("return string: \n");
-  Serial.println(string);
   return string;
 }
 
