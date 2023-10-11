@@ -19,43 +19,45 @@ void clearDisplay(uint16_t color){
   #endif
 }
 
-void initDisplay() {
+void initDisplay() {  
   #ifdef TFT_DISPLAY
     // Setup tft screen
     tft.init();
     tft.setRotation(3);
-    tft.fillScreen(TFT_WHITE); // Clear the screen
+    tft.fillScreen(TFT_WHITE);
     tft.setTextColor(TFT_BLACK);
   #endif
 }
 
-void displayVendorMode() {
+void displayLogo() {
 #ifdef TFT_DISPLAY
   clearDisplay(TFT_WHITE); 
   tft.setTextColor(TFT_DARKCYAN);
-  tft.drawString("Vendor Mode", 2, 5, 4);
+  tft.drawCentreString("LN Vending Machine", tft.width() / 2, 10, 4);
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawCentreString("v2.0.0 by Steef", tft.width() / 2, 55, 2);
+  tft.setTextColor(TFT_ORANGE);
+  tft.drawCentreString("Powered by LNBITS", tft.width() / 2, 90, 4);
+#endif
+}
+
+void displayVendorMode() {
+#ifdef TFT_DISPLAY
+  String title = "Vendor Mode";
   String text = "Top button: Refill\n"; 
   text += "Bottom button: Dispense\n\n"; 
   text += "Reset to exit\n"; 
-  tft.setTextColor(TFT_BLACK);
-  uint16_t maxWidth = tft.width();// /2;
-  uint16_t maxHeight = tft.height(); 
-  drawMultilineText(text);
+  displayScreen(title, text);
 #endif
 }
 
 void displayWifiCredentials(String apSSID, String apPassword, String apIp) {
 #ifdef TFT_DISPLAY
-  clearDisplay(TFT_WHITE); 
-  tft.setTextColor(TFT_DARKCYAN);
-  tft.drawString("WiFi Setup", 2, 5, 4);
+  String title = "WiFi Setup";
   String text = "SSID: " + apSSID + "\n"; 
   text += "PassW: " + apPassword + "\n"; 
   text += "IP: " + apIp + "\n"; 
-  tft.setTextColor(TFT_BLACK);
-  uint16_t maxWidth = tft.width();// /2;
-  uint16_t maxHeight = tft.height(); 
-  drawMultilineText(text);
+  displayScreen(title, text);
 #endif
 }
 
@@ -122,17 +124,7 @@ void displayWifiConnected(String ssid, String localIp) {
   tft.drawString("WiFi Connected", 2, 5, 4); 
   String wifiInfo = "SSID: " + ssid + "\n";
   wifiInfo += "IP address: " + localIp + "\n";
-  drawMultilineText(wifiInfo);
-#endif
-}
-
-void displayErrorMessage(String text) {
-#ifdef TFT_DISPLAY
-  clearDisplay(TFT_RED); 
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextFont(2);
-  tft.setTextWrap(true, true);
-  tft.println(text);
+  setDisplayText(wifiInfo, BLACK, WHITE, 2, 0, 40);
 #endif
 }
 
@@ -146,27 +138,9 @@ void displayMessage(String text) {
 #endif
 }
 
-void displaySuccessMessage(String text) {
+void drawMultilineText(String text, uint8_t textFont/* = 2*/) {
 #ifdef TFT_DISPLAY
-  clearDisplay(TFT_WHITE); 
-  tft.setTextColor(TFT_DARKGREEN);
-  tft.setTextFont(2);
-  tft.setTextWrap(true, true);
-  tft.println(text);
-#endif
-}
-
-void displayInfoMessage(String text) {
-#ifdef TFT_DISPLAY
-  clearDisplay(TFT_WHITE); 
-  tft.setTextColor(TFT_BLACK);
-  tft.setTextWrap(true, true);
-  tft.println(text);
-#endif
-}
-
-void drawMultilineText(String text) {
-#ifdef TFT_DISPLAY
+    tft.setTextFont(textFont);
   // Split the text into lines
     int lineHeight = tft.fontHeight() * 2; // Adjust line height as needed
     int y = (tft.height() - lineHeight * 3) / 2; // Calculate vertical position
@@ -191,11 +165,10 @@ void drawMultilineText(String text) {
 #endif
 }
 
-void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, int textSize /* = 3*/, int x /* = 0*/, int y /* = 0*/) {
+void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, uint8_t textFont /* = 2*/, int x /* = 0*/, int y /* = 0*/) {
   #ifdef TFT_DISPLAY
-    clearDisplay(backgroundColor);
     tft.setCursor(x, y);
-    tft.setTextSize(textSize);
+    tft.setTextFont(textFont);
     tft.setTextColor(textColor);
     tft.setTextWrap(true);
     tft.println(text);
@@ -205,28 +178,42 @@ void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, i
   // #endif
 }
 
-void setDisplayInfoText(String text) {
-  #if defined(TTGO)
-      setDisplayText(text, BLACK, WHITE, 2, 0, 70);      
-  #endif 
-}
-
-void setDisplaySuccessText(String text) {
-  #if defined(TTGO)
-      setDisplayText(text, GREEN, WHITE, 2, 0, 70);      
-  #endif 
-}
-
-void setDisplayErrorText(String text) {
-  #if defined(TTGO)
-      setDisplayText(text, RED, WHITE, 2, 0, 70);      
-  #endif 
-}
-
 void debugDisplayText(String text) {
   // #if DEBUG == 1
     #if defined(TTGO)
+      clearDisplay(TFT_WHITE); 
       setDisplayText(text, GREEN, BLACK);
     #endif
   // #endif
+}
+
+void displayScreen(String title, String body) {
+#ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(TFT_DARKCYAN);
+  tft.drawString(title, 2, 5, 4); 
+  tft.setTextColor(BLACK);
+  setDisplayText(body, BLACK, WHITE, 2, 5, 40);
+#endif
+}
+
+void displayErrorScreen(String title, String body) {
+#ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(RED);
+  tft.drawString(title, 2, 5, 4); 
+  tft.setTextColor(BLACK);
+  setDisplayText(body, BLACK, WHITE, 2, 5, 40);
+#endif
+}
+
+void displayDebugInfoScreen(String title, String body) {
+#ifdef TFT_DISPLAY
+// #if DEBUG == 1
+  clearDisplay(BLACK); 
+  tft.setTextColor(GREEN);
+  tft.drawString(title, 2, 5, 4); 
+  tft.setTextColor(BLACK);
+  setDisplayText(body, GREEN, BLACK, 2, 5, 40);
+#endif
 }

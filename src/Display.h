@@ -37,19 +37,21 @@
   #endif
 
     void initDisplay();
+    void displayLogo();
     void displayVendorMode();
     void displayWifiCredentials(String apSSID, String apPassword, String apIp);
     void displayWifiSetupQrCode(String qrCodeData);
     void displayConnectingToWifi();
     void displayWifiConnected(String ssid, String localIp);
-    void displayErrorMessage(String text);
-    void displayInfoMessage(String text);
-    void displaySuccessMessage(String text);
-    void drawMultilineText(String text);
-    void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, int textSize = 2, int x = 0, int y = 0);
+  
+    void drawMultilineText(String text, uint8_t textFont = 2);
+    void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, uint8_t textFont = 2, int x = 0, int y = 0);
     void setDisplayInfoText(String text);
     void setDisplaySuccessText(String text);
     void setDisplayErrorText(String text);
     void debugDisplayText(String text);
+    void displayScreen(String title, String body);
+    void displayErrorScreen(String title, String body);
+    void displayDebugInfoScreen(String title, String body);
 
 #endif

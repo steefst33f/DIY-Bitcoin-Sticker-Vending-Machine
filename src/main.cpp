@@ -47,7 +47,10 @@ void setup() {
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
   initDisplay();
-  
+
+  displayLogo();
+  delay(2000);
+
   //setup dispenser
   servo.attach(servoPin);
   pinMode(fillDispencerButton, INPUT);
@@ -127,88 +130,88 @@ void onWiFiEvent(WiFiEvent_t event) {
     case SYSTEM_EVENT_STA_DISCONNECTED:
       message = "Wi-Fi disconnected\nAttempting to reconnect...";
       Serial.println(message);
-      displayErrorMessage(message);
+      displayErrorScreen("Wifi Error", message);
       WiFi.reconnect();
       break;
     case SYSTEM_EVENT_WIFI_READY:
       message = "Wi-Fi interface ready";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi Ready", message);
       break;
     case SYSTEM_EVENT_SCAN_DONE:
       message = "Wi-Fi scan completed";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_START:
       message = "Station mode started";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_STOP:
       message = "Station mode stopped";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_CONNECTED:
       message = "Connected to AP";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
       message = "Authentication mode changed";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_LOST_IP:
       message = "Lost IP address";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
       message = "WPS success in station mode";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_FAILED:
       message = "WPS failed in station mode";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
       message = "WPS timeout in station mode";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_PIN:
       message = "WPS pin code in station mode";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_START:
       message = "Access Point started";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_STOP:
       message = "Access Point stopped";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_STACONNECTED:
       message = "Station connected to Access Point";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_STADISCONNECTED:
       message = "Station disconnected from Access Point";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
     default:
       message = "Unknown Wi-Fi event";
       Serial.println(message);
-      displayInfoMessage(message);
+      displayScreen("Wifi", message);
       break;
   }
 }
@@ -243,21 +246,22 @@ void emptyDispenser() {
 
 //NFC callback handlers
 void onNfcModuleConnected() {
-  debugDisplayText("NFC payment available!");
+  displayScreen("NFC Ready!", "LNURLWithdraw  NFC payment is available");
 }
 
 void onStartScanningTag() {
-  debugDisplayText("Scanning for NFC Card..");
+  displayScreen("Price: " + String(getVendingPrice()) +  "sats", "Scan Card to pay..");
 }
 
 void onReadingTag(/*ISO14443aTag tag*/) {
-  debugDisplayText("Reading NFC Card..");
+  displayScreen("Reading NFC Card..", "Don't remove the card untill done");
   // tag.print();
 }
 
 void onReadTagRecord(String stringRecord) {
-  debugDisplayText("Read NFC record: \n" + stringRecord);
+  displayScreen("Read NFC record:", stringRecord);
   if(payWithLnUrlWithdrawl(stringRecord)) {
+    displayScreen("Payed: " + String(getVendingPrice()) +  "sats!", "Will dispense sticker now");
     dispense();
   }
 }
@@ -277,18 +281,24 @@ void onFailure(Nfc::Error error) {
       errorString = "Failed ";
       break;
     case Nfc::Error::readFailed:
-      errorString = "readFailed";
+      errorString = "Failed to read card";
       break;
     case Nfc::Error::identifyFailed:
-      errorString = "identifyFailed";
+      errorString = "Couldn't identify tag";
       break;
     case Nfc::Error::releaseFailed:
-      errorString = "releaseFailed";
+      errorString = "Failed to release tag properly";
       break;
     default:
       errorString = "unknow error";
       break;
   }
-  setDisplayErrorText("NFC payment Failed!\n Error: !" + errorString);
+  displayErrorScreen("NFC payment Error", errorString);
+
+  if (error == Nfc::Error::connectionModuleFailed) {
+    delay(2000);
+    nfc.powerDownMode();
+    nfc.begin();
+  }
 }
 

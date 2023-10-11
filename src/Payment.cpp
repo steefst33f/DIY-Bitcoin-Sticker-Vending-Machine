@@ -16,6 +16,10 @@ String payReq = "";
 bool down = false;
 bool paid = false;
 
+int getVendingPrice() {
+  return amount.toInt();
+}
+
 bool payWithLnUrlWithdrawl(String url) {
   String lnUrl = getUrl(url);
   if (lnUrl == "") { return false; }

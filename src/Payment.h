@@ -21,6 +21,7 @@ struct Invoice {
     String lnurlResponse;
 };
 
+int getVendingPrice();
 bool payWithLnUrlWithdrawl(String url);
 
 bool withdraw(String callback, String k1, String pr);
