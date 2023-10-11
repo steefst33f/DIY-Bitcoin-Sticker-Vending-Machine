@@ -24,13 +24,12 @@ bool payWithLnUrlWithdrawl(String url) {
   String lnUrl = getUrl(url);
   if (lnUrl == "") { return false; }
 
-  // Serial.println("decodedLnUrl: " + lnUrl);
   Withdrawal withdrawal = getWithdrawal(lnUrl);
 
   if(withdrawal.tag != "withdrawRequest") {
     Serial.println(F("Scanned tag is not LNURL withdraw"));
     Serial.println(F("Present a tag with a LNURL withdraw on it"));
-    debugDisplayText(F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
+    displayErrorScreen(F("Withdrawal Failure"),F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
     return false;
   }
 
@@ -38,7 +37,7 @@ bool payWithLnUrlWithdrawl(String url) {
   if(!isAmountInWithdrawableBounds(amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
     Serial.println("The requested amount: " + amount + " is not within this LNURL withdrawal bounds");
     Serial.println(F("Amount not in bounds, can't withdraw from presented voucher."));
-    debugDisplayText(F("Amount not in bounds, can't withdraw from presented voucher."));
+    displayErrorScreen(F("Withdrawal Failure"), "Amount not in bounds.\n Card only alows amounts between: " + String(withdrawal.minWithdrawable) + " - " + String(withdrawal.maxWithdrawable) + " sats");
     return false;
   }
 
@@ -47,7 +46,7 @@ bool payWithLnUrlWithdrawl(String url) {
   Serial.println(F("Continue payment flow by creating invoice"));
 
   Serial.println(F("Will create invoice to request withrawal..."));
-  debugDisplayText("Creating invoice..");
+  displayScreen("", "Creating invoice..");
   Invoice invoice = getInvoice("BitcoinSwitch QR");
   Serial.println("invoice.paymentHash = " + invoice.paymentHash); 
   Serial.println("invoice.paymentRequest = " + invoice.paymentRequest);
@@ -57,16 +56,16 @@ bool payWithLnUrlWithdrawl(String url) {
 
   if(invoice.paymentRequest == "") {
     Serial.println(F("Failed to create invoice"));
-    debugDisplayText(F("Failed to create invoice")); 
+    displayErrorScreen(F("Withdrawal Failure"), F("Failed to create invoice")); 
     return false;
   }
 
-  debugDisplayText(F("Requesting withdrawal..")); 
+  displayScreen("", F("Requesting withdrawal..")); 
 
   bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
   if(!success) {
     Serial.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
-    debugDisplayText(F("Failed to request withdrawal invoice"));
+    displayErrorScreen(F("Withdrawal Failure"), ("Failed to request withdrawal invoice"));
     return false;
   } 
 
@@ -75,7 +74,7 @@ bool payWithLnUrlWithdrawl(String url) {
   bool isPaid = checkInvoice(invoice.checkingId);
 
   int numberOfTries = 1;
-  debugDisplayText(F("Waiting for payment confirmation..")); 
+  displayScreen("", F("Waiting for payment confirmation..")); 
   while(!isPaid && (numberOfTries < 5)) {
     delay(2000);
     isPaid = checkInvoice(invoice.checkingId);
@@ -84,12 +83,12 @@ bool payWithLnUrlWithdrawl(String url) {
 
   if(!isPaid) {
     Serial.println(F("Could not confirm withdrawal, the invoice has not been payed in time"));
-    debugDisplayText("Could not confirm withdrawal, transaction cancelled");
+    displayErrorScreen(F("Withdrawal Failure"), F("Could not confirm withdrawal, transaction cancelled"));
     return false;
   }
 
   Serial.println(F("Withdrawal successfull, invoice is payed!"));
-  debugDisplayText(F("Withdrawal succeeded!! Thank you!"));
+  displayScreen("", F("Withdrawal succeeded!! Thank you!"));
   return true;
 }
 

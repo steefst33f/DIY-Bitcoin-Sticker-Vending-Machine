@@ -210,7 +210,7 @@ void displayErrorScreen(String title, String body) {
 void displayDebugInfoScreen(String title, String body) {
 #ifdef TFT_DISPLAY
 // #if DEBUG == 1
-  clearDisplay(BLACK); 
+  clearDisplay(TFT_WHITE); 
   tft.setTextColor(GREEN);
   tft.drawString(title, 2, 5, 4); 
   tft.setTextColor(BLACK);
