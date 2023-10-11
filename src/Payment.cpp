@@ -75,7 +75,7 @@ bool payWithLnUrlWithdrawl(String url) {
 
   int numberOfTries = 1;
   displayScreen("", F("Waiting for payment confirmation..")); 
-  while(!isPaid && (numberOfTries < 5)) {
+  while(!isPaid && (numberOfTries < 3)) {
     delay(2000);
     isPaid = checkInvoice(invoice.checkingId);
     numberOfTries++;
