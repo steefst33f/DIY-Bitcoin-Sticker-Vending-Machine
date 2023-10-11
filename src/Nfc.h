@@ -36,6 +36,7 @@ class Nfc {
 
     Nfc();
     void begin();
+    void powerDownMode();
     void scanForTag();
 
     // Actions

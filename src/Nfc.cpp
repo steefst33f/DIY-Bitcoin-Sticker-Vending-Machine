@@ -19,6 +19,10 @@ void Nfc::begin() {
     }
 }
 
+void Nfc::powerDownMode() {
+    nfcModule.powerDownMode();
+}
+
 void Nfc::scanForTag() {
     state = State::scanning;
     startScanningForTag();
