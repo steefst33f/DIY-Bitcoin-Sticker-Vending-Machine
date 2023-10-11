@@ -4,23 +4,20 @@
 #include <ArduinoJson.h>
 #include "UriComponents.h"
 
-String amount = "210"; //Amount in Sats
-String lnbitsServer = "legend.lnbits.com";
-String lnurlP = "LNURL1DP68GURN8GHJ7MR9VAJKUEPWD3HXY6T5WVHXXMMD9AKXUATJD3CZ7CTSDYHHVVF0D3H82UNV9U6RVVPK5TYPNE";
-String invoiceKey = "4b76adae4f1a4dc38f93e892a8fba8b2";
+Payment::Payment()
+    : _amount("0"), _lnbitsServer(""), _invoiceKey(""), _dataId(""), _description(""), _payReq("") {};
 
-String dataId = "";
-String description = "";
-String payReq = "";
+void Payment::configure(const char*  amount, const char*  lnbitsServer, const char*  invoiceKey) {
+  _amount = amount;
+  _lnbitsServer = lnbitsServer;
+  _invoiceKey = invoiceKey;
+};
 
-bool down = false;
-bool paid = false;
-
-int getVendingPrice() {
-  return amount.toInt();
+int Payment::getVendingPrice() {
+  return _amount.toInt();
 }
 
-bool payWithLnUrlWithdrawl(String url) {
+bool Payment::payWithLnUrlWithdrawl(String url) {
   String lnUrl = getUrl(url);
   if (lnUrl == "") { return false; }
 
@@ -34,14 +31,14 @@ bool payWithLnUrlWithdrawl(String url) {
   }
 
   Serial.println(F("Scanned tag is a LNURL withdrawal request!"));
-  if(!isAmountInWithdrawableBounds(amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
-    Serial.println("The requested amount: " + amount + " is not within this LNURL withdrawal bounds");
+  if(!isAmountInWithdrawableBounds(_amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
+    Serial.println("The requested amount: " + _amount + " is not within this LNURL withdrawal bounds");
     Serial.println(F("Amount not in bounds, can't withdraw from presented voucher."));
     displayErrorScreen(F("Withdrawal Failure"), "Amount not in bounds.\n Card only alows amounts between: " + String(withdrawal.minWithdrawable) + " - " + String(withdrawal.maxWithdrawable) + " sats");
     return false;
   }
 
-  Serial.println("The requested amount: " + amount);
+  Serial.println("The requested amount: " + _amount);
   Serial.println(F(" is within this LNURL withdrawal bounds"));
   Serial.println(F("Continue payment flow by creating invoice"));
 
@@ -92,11 +89,11 @@ bool payWithLnUrlWithdrawl(String url) {
   return true;
 }
 
-Withdrawal getWithdrawal(String uri) {
+Withdrawal Payment::getWithdrawal(String uri) {
   Serial.println("uri: " + uri);
   WiFiClientSecure client;
   client.setInsecure();
-  down = false;
+  _down = false;
   UriComponents uriComponents = UriComponents::Parse(uri.c_str());
   String host = uriComponents.host.c_str();
 
@@ -104,7 +101,7 @@ Withdrawal getWithdrawal(String uri) {
 
   if(!client.connect(host.c_str(), 443)) {
     Serial.println("Client couldn't connect to service: " + host + " to get Withdrawl");
-    down = true;
+    _down = true;
     // return {};   
   }
   
@@ -123,7 +120,6 @@ Withdrawal getWithdrawal(String uri) {
   }
   String line = client.readString();
   Serial.println(line);
-  // debugDisplayText(line);
   
   const size_t capacity = JSON_OBJECT_SIZE(2) + 800;
   DynamicJsonDocument doc(capacity);  
@@ -143,30 +139,30 @@ Withdrawal getWithdrawal(String uri) {
   };
 }
 
-bool isAmountInWithdrawableBounds(int amount, int minWithdrawable, int maxWithdrawable) {
+bool Payment::isAmountInWithdrawableBounds(int amount, int minWithdrawable, int maxWithdrawable) {
   int amountInMilliSats = amount * 1000;
   Serial.println("((" + String(amountInMilliSats) + " >= " + String(minWithdrawable) + ") && (" + String(amountInMilliSats) + " <= " + String(maxWithdrawable) + "))");
   return ((amountInMilliSats >=minWithdrawable) && (amountInMilliSats <= maxWithdrawable));
 }
 
-Invoice getInvoice(String description) 
+Invoice Payment::getInvoice(String description) 
 {
   WiFiClientSecure client;
   client.setInsecure();
-  down = false;
+  _down = false;
 
-  if(!client.connect(lnbitsServer.c_str(), 443)) {
+  if(!client.connect(_lnbitsServer.c_str(), 443)) {
     Serial.println("Client couldn't connect to LNBitsServer to create Invoice");
-    down = true;
+    _down = true;
     return {};   
   }
 
-  String topost = "{\"out\": false,\"amount\" : " + String(amount) + ", \"memo\" :\""+ String(description) + String(random(1,1000)) + "\"}";
+  String topost = "{\"out\": false,\"amount\" : " + String(_amount) + ", \"memo\" :\""+ String(description) + String(random(1,1000)) + "\"}";
   String url = "/api/v1/payments";
   String request = (String("POST ") + url +" HTTP/1.1\r\n" +
-                "Host: " + lnbitsServer + "\r\n" +
+                "Host: " + _lnbitsServer + "\r\n" +
                 "User-Agent: ESP32\r\n" +
-                "X-Api-Key: "+ invoiceKey +" \r\n" +
+                "X-Api-Key: "+ _invoiceKey +" \r\n" +
                 "Content-Type: application/json\r\n" +
                 "Connection: close\r\n" +
                 "Content-Length: " + topost.length() + "\r\n" +
@@ -193,8 +189,8 @@ Invoice getInvoice(String description)
   //TODO: remove these user struct instsead
   const char* payment_hash = doc["checking_id"];
   const char* payment_request = doc["payment_request"];
-  payReq = payment_request;
-  dataId = payment_hash;
+  _payReq = payment_request;
+  _dataId = payment_hash;
 
   return {
     doc["payment_hash"],
@@ -204,15 +200,15 @@ Invoice getInvoice(String description)
   };
 }
 
-bool withdraw(String callback, String k1, String pr) {
+bool Payment::withdraw(String callback, String k1, String pr) {
   WiFiClientSecure client;
   client.setInsecure();
   UriComponents uriComponents = UriComponents::Parse(callback.c_str());
   String host = uriComponents.host.c_str();
-  down = false;
+  _down = false;
 
   if(!client.connect(host.c_str(), 443)) {
-    down = true;
+    _down = true;
     return {};   
   }
   String requestParameters = ("k1=" + k1 + "&pr=" + pr);
@@ -241,20 +237,20 @@ bool withdraw(String callback, String k1, String pr) {
   return isOk;
 }
 
-bool checkInvoice(String invoiceId) {
+bool Payment::checkInvoice(String invoiceId) {
   WiFiClientSecure client;
   client.setInsecure();
-  down = false;
+  _down = false;
 
-  if(!client.connect(lnbitsServer.c_str(), 443)) {
+  if(!client.connect(_lnbitsServer.c_str(), 443)) {
     Serial.println("Client couldn't connect to LNBitsServer to check Invoice");
-    down = true;
+    _down = true;
     return false;   
   }
 
   String url = "/api/v1/payments/";
   String request = (String("GET ") + url + invoiceId +" HTTP/1.1\r\n" +
-                "Host: " + lnbitsServer + "\r\n" +
+                "Host: " + _lnbitsServer + "\r\n" +
                 "User-Agent: ESP32\r\n" +
                 "Content-Type: application/json\r\n" +
                 "Connection: close\r\n\r\n");
@@ -279,7 +275,7 @@ bool checkInvoice(String invoiceId) {
   return isPaid;
 }
 
-String getUrl(String string) {
+String Payment::getUrl(String string) {
   Serial.println(string);
 
   //Find the index of "://"
@@ -325,19 +321,19 @@ String getUrl(String string) {
   return string;
 }
 
-String decode(String lnUrl) {
+String Payment::decode(String lnUrl) {
   WiFiClientSecure client;
   client.setInsecure();
-  down = false;
+  _down = false;
 
   if(!lnUrl.startsWith("LNURL")) {
     log_e("found LNURL");
     return lnUrl;
   }
 
-  if(!client.connect(lnbitsServer.c_str(), 443)) {
+  if(!client.connect(_lnbitsServer.c_str(), 443)) {
     Serial.println("Client couldn't connect to LNBitsServer to decode LNURL");
-    down = true;
+    _down = true;
     return "";   
   }
 
@@ -345,7 +341,7 @@ String decode(String lnUrl) {
   String body = "{\"data\": \"" + lnUrl + "\"}";
   String url = "/api/v1/payments/decode";
   String request = String("POST ") + url + " HTTP/1.1\r\n" +
-                "Host: " + lnbitsServer + "\r\n" +
+                "Host: " + _lnbitsServer + "\r\n" +
                 "User-Agent: ESP32\r\n" +
                 "Content-Type: application/json\r\n" +
                 "Connection: close\r\n" +

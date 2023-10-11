@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "WiFiSetup.h"
+#include "WiFiConfiguration.h"
 #include "Display.h"
 #include "Nfc.h"
 #include "UriComponents.h"
@@ -19,7 +19,8 @@ int emptyDispencerButton = 35;
 String ssidPrefix = "LNVending";
 String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based on a prefix and the ESP32's chip ID
 String password = "password123";
-WiFiSetup wifiSetup(ssid.c_str(), password.c_str());
+WiFiConfiguration wifiSetup(ssid.c_str(), password.c_str());
+Payment payment = Payment();
 
 Nfc nfc = Nfc();
 Servo servo;
@@ -99,6 +100,12 @@ void setup() {
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
 
+  String amount = wifiSetup.getConfiguredAmount();
+  String lnbitsServer = wifiSetup.getConfiguredLnbitsServer();
+  String invoiceKey = wifiSetup.getConfiguredInvoiceKey();
+   
+  payment.configure(amount.c_str(), lnbitsServer.c_str(), invoiceKey.c_str());
+
   //setup nfc callback handlers
   nfc.setOnNfcModuleConnected(onNfcModuleConnected);
   nfc.setOnStartScanningTag(onStartScanningTag);
@@ -110,6 +117,8 @@ void setup() {
 
 void loop() {
     wifiSetup.processDnsServerRequests();
+    nfc.powerDownMode();
+    nfc.begin();
     if (nfc.isNfcModuleAvailable()) {
       nfc.scanForTag();
     }
