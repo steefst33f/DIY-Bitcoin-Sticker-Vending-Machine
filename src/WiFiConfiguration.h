@@ -2,17 +2,17 @@
 
 #pragma once
 
-#ifndef WiFiSetup_h
-#define WiFiSetup_h
+#ifndef WiFiConfiguration_h
+#define WiFiConfiguration_h
 
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <DNSServer.h>
 
-class WiFiSetup {
+class WiFiConfiguration {
 public:
-    WiFiSetup(const char* portalSsid, const char* portalPassword);
+    WiFiConfiguration(const char* portalSsid, const char* portalPassword);
     void begin();
 
     void startConfigurationPortal();
@@ -23,6 +23,9 @@ public:
     String getConfiguredSsid();
     String getConfiguredPassword();
     String getLocalIp();
+    String getConfiguredAmount();
+    String getConfiguredLnbitsServer();
+    String getConfiguredInvoiceKey();
 
     String getPortalSsid();
     String getPortalPassword();
@@ -41,6 +44,6 @@ private:
 
     String getConfigurationPage();
     String loadConfiguration(const char* key);
-    void saveConfiguration(const String& ssid, const String& password);
+    void saveConfiguration(const String& ssid, const String& password, const String& amount, const String& lnbitsServer, const String& invoiceKey);
 };
 #endif
