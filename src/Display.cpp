@@ -53,7 +53,7 @@ void displayVendorMode() {
 
 void displayWifiCredentials(String apSSID, String apPassword, String apIp) {
 #ifdef TFT_DISPLAY
-  String title = "WiFi Setup";
+  String title = "WiFi Configuration";
   String text = "SSID: " + apSSID + "\n"; 
   text += "PassW: " + apPassword + "\n"; 
   text += "IP: " + apIp + "\n"; 
@@ -65,7 +65,7 @@ void displayWifiSetupQrCode(String qrCodeData) {
 #ifdef TFT_DISPLAY
   clearDisplay(TFT_WHITE); 
   tft.setTextColor(TFT_DARKCYAN);
-  tft.drawString("WiFi Setup", 2, 5, 4); 
+  tft.drawString("WiFi Configuration", 2, 5, 4); 
   // QrCode AP
   int qrCodePixelSize = 3;
   QRCode qrCodeAp = createQrCode(qrCodeData);
@@ -111,9 +111,76 @@ void displayConnectingToWifi() {
 #ifdef TFT_DISPLAY
   clearDisplay(TFT_WHITE); 
   tft.setTextColor(TFT_DARKCYAN);
-  tft.drawString("WiFi Setup", 2, 5, 4);   tft.setTextPadding(tft.width()); // Remove text padding
+  tft.drawString("WiFi Configuration", 2, 5, 4);   tft.setTextPadding(tft.width()); // Remove text padding
   String longText = "Connecting to Wifi...";
   tft.drawCentreString(longText, tft.width() / 2, tft.height() / 2, 2);
+#endif
+}
+
+void displayPriceToPay(String price) {
+#ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(BLACK);
+  tft.drawString("Scan card to pay..", 2, 10, 2);   
+  tft.setTextPadding(tft.width()); // Remove text padding
+  tft.setTextColor(TFT_DARKCYAN);
+  String bigText = "Price: " + price + "Sats";
+  tft.drawCentreString(bigText, tft.width() / 2, (tft.height() / 2), 4);
+#endif
+}
+
+void displayPayed(String price) {
+#ifdef TFT_DISPLAY
+  clearDisplay(TFT_WHITE); 
+  tft.setTextColor(BLACK);
+  tft.drawString("Whoehoe Payed!", 2, 10, 2);   
+  tft.setTextPadding(tft.width()); // Remove text padding
+  tft.setTextColor(TFT_DARKCYAN);
+  String bigText = "You payed " + price + "Sats!";
+  tft.drawCentreString(bigText, tft.width() / 2, (tft.height() / 2), 4);
+  showConfetti();
+#endif
+}
+
+void showConfetti() {
+#ifdef TFT_DISPLAY
+  unsigned long startTime = millis();
+  struct Confetti {
+    uint8_t x, y, size;
+    uint16_t origColor;
+  };
+  
+  uint8_t numberOfConfetti = 60;
+  Confetti lastConfetti[numberOfConfetti]; // To keep track of the last frame's confetti
+  
+  while (millis() - startTime < 4000) {  // Run for approximately 3 seconds
+    // Draw new confetti and save their details
+    for(int i = 0; i < numberOfConfetti; i++) {
+      uint8_t x = random(0, tft.width());
+      uint8_t y = random(0, tft.height());
+      uint8_t size = random(2, 6);  // Random size between 2 and 5
+      uint16_t origColor = tft.readPixel(x, y);  // Store the original color
+
+      uint16_t color = random(0xFFFF);
+      for(uint8_t dx = 0; dx < size; dx++) {
+        for(uint8_t dy = 0; dy < size; dy++) {
+          tft.drawPixel(x + dx, y + dy, color);
+        }
+      }
+      lastConfetti[i] = {x, y, size, origColor};
+    }
+    
+    delay(150); // Refresh rate
+
+    // Restore original colors from last frame's confetti
+    for(uint8_t i = 0; i < numberOfConfetti; i++) {
+      for(uint8_t dx = 0; dx < lastConfetti[i].size; dx++) {
+        for(uint8_t dy = 0; dy < lastConfetti[i].size; dy++) {
+          tft.drawPixel(lastConfetti[i].x + dx, lastConfetti[i].y + dy, lastConfetti[i].origColor);
+        }
+      }
+    }
+  }
 #endif
 }
 

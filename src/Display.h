@@ -43,7 +43,10 @@
     void displayWifiSetupQrCode(String qrCodeData);
     void displayConnectingToWifi();
     void displayWifiConnected(String ssid, String localIp);
-  
+    void displayPriceToPay(String price);
+    void displayPayed(String price);
+
+    void showConfetti();
     void drawMultilineText(String text, uint8_t textFont = 2);
     void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, uint8_t textFont = 2, int x = 0, int y = 0);
     void setDisplayInfoText(String text);

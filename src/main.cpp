@@ -259,7 +259,7 @@ void onNfcModuleConnected() {
 }
 
 void onStartScanningTag() {
-  displayScreen("Price: " + String(getVendingPrice()) +  "sats", "Scan Card to pay..");
+  displayPriceToPay(String(payment.getVendingPrice()));
 }
 
 void onReadingTag(/*ISO14443aTag tag*/) {
@@ -269,8 +269,8 @@ void onReadingTag(/*ISO14443aTag tag*/) {
 
 void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
-  if(payWithLnUrlWithdrawl(stringRecord)) {
-    displayScreen("Payed: " + String(getVendingPrice()) +  "sats!", "Will dispense sticker now");
+  if(payment.payWithLnUrlWithdrawl(stringRecord)) {
+    displayPayed(String(payment.getVendingPrice()));
     dispense();
   }
 }
