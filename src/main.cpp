@@ -15,7 +15,14 @@ String password = "password123";
 WiFiConfiguration wifiSetup(ssid.c_str(), password.c_str());
 Payment payment = Payment();
 
+//GPIO
+#define VENDOR_MODE_PIN 33
+#define SERVO_PIN 27
+#define FILL_DISPENSER_BUTTON 0
+#define EMPTY_DISPENSER_BUTTON 35
+
 Nfc nfc = Nfc();
+Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
 
 void displayWifiSetup(String ssid, String password, String ip);
 // String scannedLnUrlFromNfcTag();
@@ -29,10 +36,6 @@ void onReadingTag(/*ISO14443aTag tag*/);
 void onReadTagRecord(String stringRecord);
 void onFailure(Nfc::Error error);
 
-void dispense();
-void fillDispenser();
-void emptyDispenser();
-
 void setup() {
   Serial.begin(115200);
 
@@ -44,33 +47,8 @@ void setup() {
   displayLogo();
   delay(2000);
 
-  //setup dispenser
-  servo.attach(servoPin);
-  pinMode(fillDispencerButton, INPUT);
-  pinMode(emptyDispencerButton, INPUT);
-
-  int timer = 0;
-  while(timer < 2000) {
-    //Setup vendor mode
-    Serial.println("vendorPin: " + String(touchRead(vendorModePin)));
-    if(touchRead(vendorModePin) < 50) {
-      Serial.println(F("In Vendor Fill/Empty mode"));
-      Serial.println(F("(Restart Vending Machine to exit)"));
-      displayVendorMode();
-
-      ////Dispenser buttons scanning////
-      while (true) {
-        if (digitalRead(fillDispencerButton) == LOW) {
-          fillDispenser();
-        } else if(digitalRead(emptyDispencerButton) == LOW) {
-          emptyDispenser();
-        }
-        delay(500);
-      }  
-    }
-    timer = timer + 100;
-    delay(300);
-  }
+  dispenser.begin();
+  dispenser.waitForVendorMode(3000);
 
   wifiSetup.begin();
   String portalSsid = wifiSetup.getPortalSsid();
@@ -235,7 +213,7 @@ void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
   if(payment.payWithLnUrlWithdrawl(stringRecord)) {
     displayPayed(String(payment.getVendingPrice()));
-    dispense();
+    dispenser.dispense();
   }
 }
 
