@@ -59,7 +59,7 @@ To be able to configure the wifi and ports of your esp32 you will have to switch
 2. The vending Machine will go into Vendor mode
 3. In Vendor mode you can refill and empty your vending machine by using the two buttons on your TTGO
 4. While in Vendor Mode you can use these buttons to make the servo spin clock or counter clockwise to fill or empty the machine
-5. To exit this mode, reset the machine again and dont touch the vendot pin/wire when doing so ;)
+5. To exit this mode, reset the machine again and don't touch the vendor pin/wire when doing so ;)
 
 ### Using your Vending Machine:
 When configured and connected to the internet you can scan a nfc card by holding it close to the nfc module.

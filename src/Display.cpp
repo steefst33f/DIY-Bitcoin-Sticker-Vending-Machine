@@ -124,7 +124,7 @@ void displayPriceToPay(String price) {
   tft.drawString("Scan card to pay..", 2, 10, 2);   
   tft.setTextPadding(tft.width()); // Remove text padding
   tft.setTextColor(TFT_DARKCYAN);
-  String bigText = "Price: " + price + "Sats";
+  String bigText = "Price: " + price + " Sats";
   tft.drawCentreString(bigText, tft.width() / 2, (tft.height() / 2), 4);
 #endif
 }
