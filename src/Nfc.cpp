@@ -1,8 +1,19 @@
 #include "Nfc.h"
 
+
+
+#if NFC_SPI
+Nfc::Nfc(): _pn532_spi(SPI, 37), nfcModule(_pn532_spi) {
+    state = State::notConnected;
+    // SPI.begin(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+    // _pn532_spi = PN532_SPI(SPI, PN532_SS);
+    // nfcModule = NfcAdapter(_pn532_spi);
+}
+#else 
 Nfc::Nfc(): _pn532_i2c(Wire), nfcModule(_pn532_i2c) {
     state = State::notConnected;
 }
+#endif
 
 bool Nfc::isNfcModuleAvailable() {
     return _hasFoundNfcModule;
@@ -11,6 +22,7 @@ bool Nfc::isNfcModuleAvailable() {
 // Actions ////////////////////////////////
 
 void Nfc::begin() {
+    resetModule();
     state = State::notConnected;
     if (nfcModule.begin()) {
         connectedToNfcModule();
@@ -20,18 +32,24 @@ void Nfc::begin() {
 }
 
 void Nfc::powerDownMode() {
-    nfcModule.powerDownMode();
+    // nfcModule.powerDownMode();
 }
 
 void Nfc::scanForTag() {
     state = State::scanning;
     startScanningForTag();
-    nfcModule.powerDownMode();
+    powerDownMode();
     if (nfcModule.isTagPresent()) {
         tagFound();
     } else {
         noTagFound();
     }
+}
+
+void Nfc::resetModule() {
+  digitalWrite(36, LOW);
+  delay(300);
+  digitalWrite(36, HIGH);
 }
 
 void Nfc::identifyTag() {
@@ -46,16 +64,20 @@ void Nfc::identifyTag() {
 void Nfc::readTagMessage() {
     state = State::reading;
     Serial.println("readTagMessage");
+#if DEMO
+    readSuccess("lightning:LNURL1DP68GURN8GHJ7MR9VAJKUEPWD3HXY6T5WVHXXMMD9AMKJARGV3EXZAE0V9CXJTMKXYHKCMN4WFKZ7KJTV3RX2JZ4FD28JDMGTP95U5Z3VDJNYAM294NPJY");
+    return;
+#endif
     NfcTag tag = nfcModule.read();
     if (tag.hasNdefMessage()) {
-        log_e();
+        // log_e();
         NdefMessage message = tag.getNdefMessage();
         message.print();
 
         int recordCount = message.getRecordCount();
         Serial.println("recordCount: " + recordCount);
         if (recordCount < 1) {
-            log_e();
+            // log_e();
             readFailed();
             return;
         }
@@ -63,12 +85,12 @@ void Nfc::readTagMessage() {
         // If more than 1 Message then it wil cycle through them untill it finds a LNURL
         for(int i = 0; i < recordCount; i++) {
             NdefRecord record = message.getRecord(i);
-            log_e();
+            // log_e();
             record.print();
 
             int payloadLength = record.getPayloadLength();
             if (payloadLength < 1) {
-                log_e();
+                // log_e();
                 readFailed();
                 return;
             }
@@ -85,7 +107,7 @@ void Nfc::readTagMessage() {
             return;
         }
     } else {
-        log_e();
+        // log_e();
         readFailed();
         return;
     }

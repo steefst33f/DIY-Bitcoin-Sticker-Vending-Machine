@@ -8,6 +8,9 @@
 
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#if NFC_SPI
+#include <SPI.h>
+#endif
 
 String ssidPrefix = "LNVending";
 String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based on a prefix and the ESP32's chip ID
@@ -20,6 +23,14 @@ Payment payment = Payment();
 #define SERVO_PIN 27
 #define FILL_DISPENSER_BUTTON 0
 #define EMPTY_DISPENSER_BUTTON 35
+
+#if NFC_SPI
+#define PN532_SCK  (2)
+#define PN532_MISO (15)
+#define PN532_MOSI (13)
+#define PN532_SS   (37)
+#endif
+// #define DEMO 1
 
 Nfc nfc = Nfc();
 Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
@@ -42,12 +53,17 @@ void setup() {
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
+#if NFC_SPI
+  SPI.begin(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+#endif
   initDisplay();
 
   displayLogo();
   delay(2000);
 
   dispenser.begin();
+
+  #if !DEMO
   dispenser.waitForVendorMode(3000);
 
   wifiSetup.begin();
@@ -70,6 +86,8 @@ void setup() {
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
 
+  #endif
+
   String amount = wifiSetup.getConfiguredAmount();
   String lnbitsServer = wifiSetup.getConfiguredLnbitsServer();
   String invoiceKey = wifiSetup.getConfiguredInvoiceKey();
@@ -86,7 +104,7 @@ void setup() {
 }
 
 void loop() {
-    wifiSetup.processDnsServerRequests();
+    // wifiSetup.processDnsServerRequests();
     nfc.powerDownMode();
     nfc.begin();
     if (nfc.isNfcModuleAvailable()) {

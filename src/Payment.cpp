@@ -21,6 +21,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   String lnUrl = getUrl(url);
   if (lnUrl == "") { return false; }
 
+#if !DEMO
   Withdrawal withdrawal = getWithdrawal(lnUrl);
 
   if(withdrawal.tag != "withdrawRequest") {
@@ -43,7 +44,13 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   Serial.println(F("Continue payment flow by creating invoice"));
 
   Serial.println(F("Will create invoice to request withrawal..."));
+
+#endif
+  
+
   displayScreen("", "Creating invoice..");
+
+#if !DEMO
   Invoice invoice = getInvoice("BitcoinSwitch QR");
   Serial.println("invoice.paymentHash = " + invoice.paymentHash); 
   Serial.println("invoice.paymentRequest = " + invoice.paymentRequest);
@@ -56,9 +63,15 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     displayErrorScreen(F("Withdrawal Failure"), F("Failed to create invoice")); 
     return false;
   }
+#endif
+
+#if DEMO
+  delay(300);
+#endif
 
   displayScreen("", F("Requesting withdrawal..")); 
 
+#if !DEMO
   bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
   if(!success) {
     Serial.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
@@ -71,7 +84,14 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   bool isPaid = checkInvoice(invoice.checkingId);
 
   int numberOfTries = 1;
+#endif
+
+#if DEMO
+  delay(500);
+#endif
   displayScreen("", F("Waiting for payment confirmation..")); 
+  
+#if !DEMO
   while(!isPaid && (numberOfTries < 3)) {
     delay(2000);
     isPaid = checkInvoice(invoice.checkingId);
@@ -83,6 +103,11 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     displayErrorScreen(F("Withdrawal Failure"), F("Could not confirm withdrawal, transaction cancelled"));
     return false;
   }
+#endif
+
+#if DEMO
+  delay(800);
+#endif
 
   Serial.println(F("Withdrawal successfull, invoice is payed!"));
   displayScreen("", F("Withdrawal succeeded!! Thank you!"));

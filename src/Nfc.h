@@ -7,9 +7,14 @@
 
 #include <Wire.h>
 #include <PN532.h>
-#include <PN532_I2C.h>
-#include <NfcAdapter.h>
 
+#if NFC_SPI
+#include <PN532_SPI.h>
+#else
+#include <PN532_I2C.h>
+#endif
+
+#include <NfcAdapter.h>
 
 class Nfc {
     public:
@@ -38,6 +43,7 @@ class Nfc {
     void begin();
     void powerDownMode();
     void scanForTag();
+    void resetModule();
 
     // Actions
     void identifyTag();
@@ -58,11 +64,15 @@ class Nfc {
         for(int byteIndex = 0; byteIndex < sizeOfArray; byteIndex++) {
             stringOfData += (char)dataArray[byteIndex];
         }
-    return stringOfData;
-}
+        return stringOfData;
+    }
 
     private:
+    #if NFC_SPI
+    PN532_SPI _pn532_spi;
+    #else
     PN532_I2C _pn532_i2c;
+    #endif
     State state;
     bool _hasFoundNfcModule;
 
