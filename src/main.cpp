@@ -47,6 +47,9 @@ void onReadingTag(/*ISO14443aTag tag*/);
 void onReadTagRecord(String stringRecord);
 void onFailure(Nfc::Error error);
 
+// API call
+void doApiCall(String uri);
+
 void setup() {
   Serial.begin(115200);
 
@@ -63,9 +66,11 @@ void setup() {
 
   dispenser.begin();
 
-  #if !DEMO
+#if !DEMO
   dispenser.waitForVendorMode(3000);
+#endif
 
+#if WIFI
   wifiSetup.begin();
   String portalSsid = wifiSetup.getPortalSsid();
   String portalPassword = wifiSetup.getPortalPassword();
@@ -85,8 +90,7 @@ void setup() {
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
-
-  #endif
+#endif
 
   String amount = wifiSetup.getConfiguredAmount();
   String lnbitsServer = wifiSetup.getConfiguredLnbitsServer();
@@ -104,7 +108,9 @@ void setup() {
 }
 
 void loop() {
-    // wifiSetup.processDnsServerRequests();
+  #if WIFI
+    wifiSetup.processDnsServerRequests();
+  #endif
     nfc.powerDownMode();
     nfc.begin();
     if (nfc.isNfcModuleAvailable()) {
@@ -113,6 +119,7 @@ void loop() {
     delay(5000);  
 }
 
+#if WIFI
 // Wifi events handler
 void onWiFiEvent(WiFiEvent_t event) {
   String message = "";
@@ -212,6 +219,7 @@ void onWiFiEvent(WiFiEvent_t event) {
       break;
   }
 }
+#endif
 
 //NFC callback handlers
 void onNfcModuleConnected() {
@@ -231,6 +239,9 @@ void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
   if(payment.payWithLnUrlWithdrawl(stringRecord)) {
     displayPayed(String(payment.getVendingPrice()));
+    #if WIFI
+    doApiCall("https://retoolapi.dev/hcHuO8/getPerson");
+    #endif
     dispenser.dispense();
   }
 }
@@ -271,3 +282,48 @@ void onFailure(Nfc::Error error) {
   }
 }
 
+// API call
+void doApiCall(String uri) {
+  Serial.println("uri: " + uri);
+  WiFiClientSecure client;
+  client.setInsecure();
+  UriComponents uriComponents = UriComponents::Parse(uri.c_str());
+  String host = uriComponents.host.c_str();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+
+      // Your API endpoint
+    http.begin(uri);
+
+    // Send GET request
+    int httpResponseCode = http.GET();
+
+    if (httpResponseCode > 0) {
+      String payload = http.getString();
+      Serial.println("HTTP Response Code: " + String(httpResponseCode));
+      Serial.println("Response Data: " + payload);
+
+      // Parse JSON response
+      DynamicJsonDocument jsonDoc(1024); // Adjust the buffer size as needed
+      DeserializationError jsonError = deserializeJson(jsonDoc, payload);
+
+      if (jsonError) {
+        Serial.println("JSON parsing error: " + String(jsonError.c_str()));
+      } else {
+        // Access JSON properties
+        String name = jsonDoc["name"];
+        String lastName = jsonDoc["lastname"];
+        int age = jsonDoc["age"];
+
+        Serial.println("Name: " + name);
+        Serial.println("Last Name: " + lastName);
+        Serial.println("Age: " + String(age));
+      }
+    } else {
+      Serial.println("Error in HTTP request");
+    }
+
+    http.end();
+  }
+}
