@@ -6,14 +6,7 @@
 #define Nfc_h
 
 #include <Wire.h>
-#include <PN532.h>
-
-#if NFC_SPI
-#include <PN532_SPI.h>
-#else
-#include <PN532_I2C.h>
-#endif
-
+#include <Adafruit_PN532.h>
 #include <NfcAdapter.h>
 
 class Nfc {
@@ -37,9 +30,9 @@ class Nfc {
         unknownError
     };
 
-    NfcAdapter nfcModule;
+    NfcAdapter nfcAdapter;
 
-    Nfc();
+    Nfc(Adafruit_PN532 *nfcModule);
     void begin();
     void powerDownMode();
     void scanForTag();
@@ -68,11 +61,6 @@ class Nfc {
     }
 
     private:
-    #if NFC_SPI
-    PN532_SPI _pn532_spi;
-    #else
-    PN532_I2C _pn532_i2c;
-    #endif
     State state;
     bool _hasFoundNfcModule;
 

@@ -19,20 +19,19 @@ WiFiConfiguration wifiSetup(ssid.c_str(), password.c_str());
 Payment payment = Payment();
 
 //GPIO
-#define VENDOR_MODE_PIN 33
-#define SERVO_PIN 27
+#define VENDOR_MODE_PIN 13
+#define SERVO_PIN 15
 #define FILL_DISPENSER_BUTTON 0
 #define EMPTY_DISPENSER_BUTTON 35
 
-#if NFC_SPI
-#define PN532_SCK  (2)
-#define PN532_MISO (15)
-#define PN532_MOSI (13)
-#define PN532_SS   (37)
-#endif
-// #define DEMO 1
+//NFC module
+#define PN532_SCK  (25)
+#define PN532_MISO (27)
+#define PN532_MOSI (26)
+#define PN532_SS   (33)
+Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+Nfc nfc = Nfc(nfcModule);
 
-Nfc nfc = Nfc();
 Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
 
 void displayWifiSetup(String ssid, String password, String ip);
@@ -57,6 +56,12 @@ void setup() {
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
 #if NFC_SPI
+  // vspi = new SPIClass(VSPI);
+  pinMode(PN532_SS, OUTPUT);
+  pinMode(PN532_SCK, OUTPUT);
+  pinMode(PN532_MISO, INPUT);
+  pinMode(PN532_MOSI, OUTPUT);
+
   SPI.begin(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 #endif
   initDisplay();
@@ -67,7 +72,7 @@ void setup() {
   dispenser.begin();
 
 #if !DEMO
-  dispenser.waitForVendorMode(3000);
+  // dispenser.waitForVendorMode(3000);
 #endif
 
 #if WIFI
@@ -111,8 +116,8 @@ void loop() {
   #if WIFI
     wifiSetup.processDnsServerRequests();
   #endif
-    nfc.powerDownMode();
-    nfc.begin();
+    // nfc.powerDownMode();
+    // nfc.begin();
     if (nfc.isNfcModuleAvailable()) {
       nfc.scanForTag();
     }

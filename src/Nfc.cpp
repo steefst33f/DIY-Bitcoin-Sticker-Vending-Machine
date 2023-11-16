@@ -1,19 +1,18 @@
 #include "Nfc.h"
 
-
-
 #if NFC_SPI
-Nfc::Nfc(): _pn532_spi(SPI, 37), nfcModule(_pn532_spi) {
-    state = State::notConnected;
-    // SPI.begin(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
-    // _pn532_spi = PN532_SPI(SPI, PN532_SS);
-    // nfcModule = NfcAdapter(_pn532_spi);
-}
-#else 
-Nfc::Nfc(): _pn532_i2c(Wire), nfcModule(_pn532_i2c) {
-    state = State::notConnected;
-}
+#define PN532_SCK  (25)
+#define PN532_MISO (27)
+#define PN532_MOSI (26)
+#define PN532_SS   (33)
+
+//TODO: use differernt pins, make sure they can all be used as output pins (except MISO as input)!
+// SPIClass * vspi = NULL;
 #endif
+
+Nfc::Nfc(Adafruit_PN532 *nfcModule): nfcAdapter(nfcModule) {
+    state = State::notConnected;
+}
 
 bool Nfc::isNfcModuleAvailable() {
     return _hasFoundNfcModule;
@@ -24,7 +23,7 @@ bool Nfc::isNfcModuleAvailable() {
 void Nfc::begin() {
     resetModule();
     state = State::notConnected;
-    if (nfcModule.begin()) {
+    if (nfcAdapter.begin()) {
         connectedToNfcModule();
     } else {
         connectionNfcModuleFailed();
@@ -32,14 +31,14 @@ void Nfc::begin() {
 }
 
 void Nfc::powerDownMode() {
-    // nfcModule.powerDownMode();
+    // nfcAdapter.powerDownMode();
 }
 
 void Nfc::scanForTag() {
     state = State::scanning;
     startScanningForTag();
     powerDownMode();
-    if (nfcModule.isTagPresent()) {
+    if (nfcAdapter.isTagPresent()) {
         tagFound();
     } else {
         noTagFound();
@@ -54,8 +53,8 @@ void Nfc::resetModule() {
 
 void Nfc::identifyTag() {
     state = State::inlisting;
-    if (nfcModule.identifyTag()) {
-        tagIdentifiedSuccess(/*nfcModule.getInlistedTag()*/);
+    if (nfcAdapter.identifyTag()) {
+        tagIdentifiedSuccess(/*nfcAdapter.getInlistedTag()*/);
     } else {
         tagIdentifyFailed();
     }
@@ -68,7 +67,7 @@ void Nfc::readTagMessage() {
     readSuccess("lightning:LNURL1DP68GURN8GHJ7MR9VAJKUEPWD3HXY6T5WVHXXMMD9AMKJARGV3EXZAE0V9CXJTMKXYHKCMN4WFKZ7KJTV3RX2JZ4FD28JDMGTP95U5Z3VDJNYAM294NPJY");
     return;
 #endif
-    NfcTag tag = nfcModule.read();
+    NfcTag tag = nfcAdapter.read();
     if (tag.hasNdefMessage()) {
         // log_e();
         NdefMessage message = tag.getNdefMessage();
@@ -115,7 +114,7 @@ void Nfc::readTagMessage() {
 
 void Nfc::releaseTag() {
     state = State::releasing;
-    nfcModule.releaseTag();
+    nfcAdapter.releaseTag();
     tagReleased();
 }
 
@@ -185,7 +184,7 @@ void Nfc::tagIdentifiedSuccess(/*ISO14443aTag tag*/) {
 }
 
 void Nfc::tagIdentifyFailed() {
-    Serial.println("Tag Identified!");
+    Serial.println("Tag NOT Identified!");
     if (state == State::inlisting) {
         state = State::releasing;
         releaseTag();
