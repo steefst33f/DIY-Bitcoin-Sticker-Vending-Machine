@@ -10,6 +10,10 @@
 // SPIClass * vspi = NULL;
 #endif
 
+#if SHOW_MY_NFC_DEBUG_SERIAL
+#define MY_NFC_DEBUG_SERIAL Serial
+#endif
+
 Nfc::Nfc(Adafruit_PN532 *nfcModule): nfcAdapter(nfcModule) {
     state = State::notConnected;
 }
@@ -21,7 +25,6 @@ bool Nfc::isNfcModuleAvailable() {
 // Actions ////////////////////////////////
 
 void Nfc::begin() {
-    resetModule();
     state = State::notConnected;
     if (nfcAdapter.begin()) {
         connectedToNfcModule();
@@ -45,12 +48,6 @@ void Nfc::scanForTag() {
     }
 }
 
-void Nfc::resetModule() {
-  digitalWrite(36, LOW);
-  delay(300);
-  digitalWrite(36, HIGH);
-}
-
 void Nfc::identifyTag() {
     state = State::inlisting;
     if (nfcAdapter.identifyTag()) {
@@ -62,7 +59,9 @@ void Nfc::identifyTag() {
 
 void Nfc::readTagMessage() {
     state = State::reading;
-    Serial.println("readTagMessage");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("readTagMessage");
+    #endif
 #if DEMO
     readSuccess("lightning:LNURL1DP68GURN8GHJ7MR9VAJKUEPWD3HXY6T5WVHXXMMD9AMKJARGV3EXZAE0V9CXJTMKXYHKCMN4WFKZ7KJTV3RX2JZ4FD28JDMGTP95U5Z3VDJNYAM294NPJY");
     return;
@@ -74,7 +73,9 @@ void Nfc::readTagMessage() {
         message.print();
 
         int recordCount = message.getRecordCount();
-        Serial.println("recordCount: " + recordCount);
+        #ifdef MY_NFC_DEBUG_SERIAL
+        MY_NFC_DEBUG_SERIAL.println("recordCount: " + recordCount);
+        #endif
         if (recordCount < 1) {
             // log_e();
             readFailed();
@@ -99,8 +100,10 @@ void Nfc::readTagMessage() {
             //+1 to skip first byte of payload, which is always null
             String stringRecord = convertToStringFromBytes(payload+1, payloadLength-1);
             
-            Serial.println("Payload Length = " + String(payloadLength));
-            Serial.println("  Information (as String): " + stringRecord);
+            #ifdef MY_NFC_DEBUG_SERIAL
+            MY_NFC_DEBUG_SERIAL.println("Payload Length = " + String(payloadLength));
+            MY_NFC_DEBUG_SERIAL.println("  Information (as String): " + stringRecord);
+            #endif
 
             readSuccess(stringRecord);
             return;
@@ -144,14 +147,18 @@ void Nfc::setOnFailure(std::function<void(Error)> onFailure) {
 // Events ////////////////////////////////
 
 void Nfc::connectedToNfcModule() {
-    Serial.println("Connected to NFC Module!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Connected to NFC Module!");
+    #endif
     _hasFoundNfcModule = true;
     state = State::idle;
     _onNfcModuleConnected();
 }
 
 void Nfc::connectionNfcModuleFailed() {
-    Serial.println("Failed to connect to NFC Module!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Failed to connect to NFC Module!");
+    #endif
     _hasFoundNfcModule = false;
     state = State::notConnected;
     _onFailure(Error::connectionModuleFailed);
@@ -163,7 +170,9 @@ void Nfc::startScanningForTag() {
 }
 
 void Nfc::tagFound() {
-    Serial.println("Tag Found!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Tag Found!");
+    #endif
     if (state == State::scanning) {
         state = State::inlisting;
         identifyTag();
@@ -171,11 +180,15 @@ void Nfc::tagFound() {
 }
 
 void Nfc::noTagFound() {
-    Serial.println("No Tag Found!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("No Tag Found!");
+    #endif
 }
 
 void Nfc::tagIdentifiedSuccess(/*ISO14443aTag tag*/) {
-    Serial.println("Tag Identified!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Tag Identified!");
+    #endif
     if (state == State::inlisting) {
         state = State::reading;
         _onReadingTag(/*tag*/);
@@ -184,7 +197,9 @@ void Nfc::tagIdentifiedSuccess(/*ISO14443aTag tag*/) {
 }
 
 void Nfc::tagIdentifyFailed() {
-    Serial.println("Tag NOT Identified!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Tag NOT Identified!");
+    #endif
     if (state == State::inlisting) {
         state = State::releasing;
         releaseTag();
@@ -193,7 +208,9 @@ void Nfc::tagIdentifyFailed() {
 }
 
 void Nfc::readSuccess(String stringRecord) {
-    Serial.println("Read success!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Read success!");
+    #endif
     if (state == State::reading) {
         state = State::releasing;
         releaseTag();
@@ -202,7 +219,9 @@ void Nfc::readSuccess(String stringRecord) {
 }
 
 void Nfc::readFailed() {
-    Serial.println("Read failed!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Read failed!");
+    #endif
     if (state == State::reading) {
         state = State::releasing;
         releaseTag();
@@ -211,7 +230,9 @@ void Nfc::readFailed() {
 }
 
 void Nfc::tagReleased() {
-    Serial.println("Tag Released!");
+    #ifdef MY_NFC_DEBUG_SERIAL
+    MY_NFC_DEBUG_SERIAL.println("Tag Released!");
+    #endif
     if (state == State::releasing) {
         state = State::idle;
     }

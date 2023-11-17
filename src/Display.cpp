@@ -1,5 +1,9 @@
 #include "Display.h"
 
+#if SHOW_MY_DISPLAY_DEBUG_SERIAL
+#define MY_DISPLAY_DEBUG_SERIAL Serial
+#endif
+
 #ifdef TFT_DISPLAY
   #include <TFT_eSPI.h>
   #include <qrcode.h>
@@ -75,7 +79,9 @@ void displayWifiSetupQrCode(String qrCodeData) {
 
 #ifdef TFT_DISPLAY
 QRCode createQrCode(String data) {
-  Serial.println(data);
+  #ifdef MY_DISPLAY_DEBUG_SERIAL
+  MY_DISPLAY_DEBUG_SERIAL.println(data);
+  #endif
   const char *qrDataChar = data.c_str();
   QRCode qrCode;
   uint8_t qrcodeData[qrcode_getBufferSize(20)];
@@ -87,23 +93,35 @@ QRCode createQrCode(String data) {
 
 #ifdef TFT_DISPLAY
 void drawQrCode(QRCode qrCode, TFT_eSPI tft, int pixelSize, int xOffset, int yOffSet) {
-  Serial.print("\n\n\n\n");
+  #ifdef MY_DISPLAY_DEBUG_SERIAL
+  MY_DISPLAY_DEBUG_SERIAL.print("\n\n\n\n");
+  #endif
 
   for (uint8_t y = 0; y < qrCode.size; y++) {
     // Left quiet zone
-    Serial.print("        ");
+    #ifdef MY_DISPLAY_DEBUG_SERIAL
+    MY_DISPLAY_DEBUG_SERIAL.print("        ");
+    #endif
     for (uint8_t x = 0; x < qrCode.size; x++) {
       if (qrcode_getModule(&qrCode, x, y)) {
         tft.fillRect(xOffset + pixelSize * x, yOffSet + pixelSize * y, pixelSize, pixelSize, TFT_BLACK);
-        Serial.print("\u2588"); // Print each module (UTF-8 \u2588 is a solid block)
+        #ifdef MY_DISPLAY_DEBUG_SERIAL
+        MY_DISPLAY_DEBUG_SERIAL.print("\u2588"); // Print each module (UTF-8 \u2588 is a solid block)
+        #endif
       } else {
         tft.fillRect(xOffset + pixelSize * x, yOffSet + pixelSize * y, pixelSize, pixelSize, TFT_WHITE);
-        Serial.print(" ");
+        #ifdef MY_DISPLAY_DEBUG_SERIAL
+        MY_DISPLAY_DEBUG_SERIAL.print(" ");
+        #endif
       }
     }
-    Serial.print("\n");
+    #ifdef MY_DISPLAY_DEBUG_SERIAL
+    MY_DISPLAY_DEBUG_SERIAL.print("\n");
+    #endif
   }
-  Serial.print("\n\n\n\n");
+  #ifdef MY_DISPLAY_DEBUG_SERIAL
+  MY_DISPLAY_DEBUG_SERIAL.print("\n\n\n\n");
+  #endif
 }
 #endif
 
@@ -240,18 +258,18 @@ void setDisplayText(String text, uint16_t textColor, uint16_t backgroundColor, u
     tft.setTextWrap(true);
     tft.println(text);
   #endif
-  // #if DEBUG == 1
-  Serial.println(text);
-  // #endif
+  #ifdef MY_DISPLAY_DEBUG_SERIAL
+  MY_DISPLAY_DEBUG_SERIAL.println(text);
+  #endif
 }
 
 void debugDisplayText(String text) {
-  // #if DEBUG == 1
+  #if DEBUG == 1
     #if defined(TTGO)
       clearDisplay(TFT_WHITE); 
       setDisplayText(text, GREEN, BLACK);
     #endif
-  // #endif
+  #endif
 }
 
 void displayScreen(String title, String body) {
@@ -276,7 +294,6 @@ void displayErrorScreen(String title, String body) {
 
 void displayDebugInfoScreen(String title, String body) {
 #ifdef TFT_DISPLAY
-// #if DEBUG == 1
   clearDisplay(TFT_WHITE); 
   tft.setTextColor(GREEN);
   tft.drawString(title, 2, 5, 4); 

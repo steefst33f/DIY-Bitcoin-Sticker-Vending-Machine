@@ -1,6 +1,10 @@
 #include "WiFiConfiguration.h"
 #include "SPIFFS.h"
 
+#if SHOW_MY_WIFI_DEBUG_SERIAL
+#define MY_WIFI_DEBUG_SERIAL Serial
+#endif
+
 WiFiConfiguration::WiFiConfiguration(const char* portalSsid, const char* portalPassword)
     : _portalSsid(portalSsid), _portalPassword(portalPassword), _portalIp(192, 168, 4, 1), _server(80), _dnsServer() {}
 
@@ -23,19 +27,24 @@ bool WiFiConfiguration::connectToWifi(String ssid, String password) {
     WiFi.begin(ssid.c_str(), password.c_str());
     while ((WiFi.status() != WL_CONNECTED)) {
         delay(1000);
-        Serial.println("Connecting to WiFi...");
+        #ifdef MY_WIFI_DEBUG_SERIAL
+        MY_WIFI_DEBUG_SERIAL.println("Connecting to WiFi...");
+        #endif
         trials++;
         if (trials > maxTrials) {
-        Serial.println("Failed to connect to WiFi");
+        #ifdef MY_WIFI_DEBUG_SERIAL
+        MY_WIFI_DEBUG_SERIAL.println("Failed to connect to WiFi");
+        #endif
         return false;
         }
     }
-
-    Serial.println("Connected to WiFi");
-    Serial.print("SSID: ");
-    Serial.println(WiFi.SSID());
-    Serial.print("IP address: ");
-    Serial.println(getLocalIp());
+    #ifdef MY_WIFI_DEBUG_SERIAL
+    MY_WIFI_DEBUG_SERIAL.println("Connected to WiFi");
+    MY_WIFI_DEBUG_SERIAL.print("SSID: ");
+    MY_WIFI_DEBUG_SERIAL.println(WiFi.SSID());
+    MY_WIFI_DEBUG_SERIAL.print("IP address: ");
+    MY_WIFI_DEBUG_SERIAL.println(getLocalIp());
+    #endif
     return true;
 }
 
@@ -45,12 +54,14 @@ void WiFiConfiguration::startConfigurationPortal() {
     WiFi.softAPConfig(_portalIp, _portalIp, IPAddress(255, 255, 255, 0));
     _dnsServer.start(53, "*", _portalIp);
 
-    Serial.print("AP IP address: ");
-    Serial.println(WiFi.softAPIP().toString());
-    Serial.print("AP SSID: ");
-    Serial.println(_portalSsid);
-    Serial.print("AP password: ");
-    Serial.println(_portalPassword);
+    #ifdef MY_WIFI_DEBUG_SERIAL
+    MY_WIFI_DEBUG_SERIAL.print("AP IP address: ");
+    MY_WIFI_DEBUG_SERIAL.println(WiFi.softAPIP().toString());
+    MY_WIFI_DEBUG_SERIAL.print("AP SSID: ");
+    MY_WIFI_DEBUG_SERIAL.println(_portalSsid);
+    MY_WIFI_DEBUG_SERIAL.print("AP password: ");
+    MY_WIFI_DEBUG_SERIAL.println(_portalPassword);
+    #endif
 
     // Define web server routes
     _server.on("/", HTTP_GET, [&](AsyncWebServerRequest *request) {
@@ -73,7 +84,9 @@ void WiFiConfiguration::startConfigurationPortal() {
     });
 
     _server.onNotFound([](AsyncWebServerRequest* request){
-        Serial.println("**client gets redeirected to: /login ***");
+        #ifdef MY_WIFI_DEBUG_SERIAL
+        MY_WIFI_DEBUG_SERIAL.println("**client gets redeirected to: /login ***");
+        #endif
         request->redirect("http:" + WiFi.softAPIP().toString());
     });
 

@@ -35,7 +35,6 @@ class Nfc {
     void begin();
     void powerDownMode();
     void scanForTag();
-    void resetModule();
 
     // Actions
     void identifyTag();
