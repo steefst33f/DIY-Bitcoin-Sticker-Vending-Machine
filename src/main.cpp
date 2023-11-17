@@ -8,9 +8,6 @@
 
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#if NFC_SPI
-#include <SPI.h>
-#endif
 
 String ssidPrefix = "LNVending";
 String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based on a prefix and the ESP32's chip ID
@@ -25,11 +22,20 @@ Payment payment = Payment();
 #define EMPTY_DISPENSER_BUTTON 35
 
 //NFC module
+#if NFC_SPI
 #define PN532_SCK  (25)
 #define PN532_MISO (27)
 #define PN532_MOSI (26)
 #define PN532_SS   (33)
 Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+#elif NFC_I2C
+#define PN532_IRQ     (2)
+#define PN532_RESET   (3)
+Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_IRQ, PN532_RESET);
+#else
+#error "Need NFC interface defined! Define NFC_SPI=1 or NFC_I2C=1!"
+#endif
+
 Nfc nfc = Nfc(nfcModule);
 
 Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);

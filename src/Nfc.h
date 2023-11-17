@@ -5,7 +5,6 @@
 #ifndef Nfc_h
 #define Nfc_h
 
-#include <Wire.h>
 #include <Adafruit_PN532.h>
 #include <NfcAdapter.h>
 
