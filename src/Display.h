@@ -19,7 +19,7 @@
   
   #ifdef TFT_DISPLAY
     #include <TFT_eSPI.h>
-    #include <QRCode.h>
+    #include <qrcode.h>
 
     #define BLACK TFT_BLACK
     #define WHITE TFT_WHITE
