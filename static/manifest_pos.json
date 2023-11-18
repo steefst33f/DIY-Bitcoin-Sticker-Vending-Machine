@@ -1,0 +1,13 @@
+{
+	"name": "Bitcoin Point of Sale",
+	"version": "1.420.blazeit-edition",
+	"funding_url": "",
+	"builds": [
+		{
+			"chipFamily": "ESP32",
+			"parts": [
+				{ "path": "firmware/merged-firmware.bin", "offset": 0 }
+			]
+		}
+	]
+}
