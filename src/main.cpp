@@ -1,3 +1,13 @@
+//UnComment to show Serial debugging prints
+#if SHOW_MY_DEBUG_SERIAL
+#define MY_DEBUG_SERIAL Serial
+#define SHOW_MY_NFC_DEBUG_SERIAL = 1
+#define SHOW_MY_WIFI_DEBUG_SERIAL = 1
+#define SHOW_MY_PAYMENT_DEBUG_SERIAL = 1
+#define SHOW_MY_DISPENSER_DEBUG_SERIAL = 1
+#define SHOW_MY_APPCONFIGURATION_DEBUG_SERIAL = 1
+#endif
+
 #include <Arduino.h>
 #include "WiFiConfiguration.h"
 #include "Display.h"
@@ -5,6 +15,7 @@
 #include "UriComponents.h"
 #include "Payment.h"
 #include "Dispenser.h"
+#include "AppConfiguration.h"
 
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -15,20 +26,14 @@ String password = "password123";
 WiFiConfiguration wifiSetup(ssid.c_str(), password.c_str());
 Payment payment = Payment();
 
-//UnComment to show Serial debugging prints
-#if SHOW_MY_DEBUG_SERIAL
-#define MY_DEBUG_SERIAL Serial
-#define SHOW_MY_NFC_DEBUG_SERIAL = 1
-#define SHOW_MY_WIFI_DEBUG_SERIAL = 1
-#define SHOW_MY_PAYMENT_DEBUG_SERIAL = 1
-#define SHOW_MY_DISPENSER_DEBUG_SERIAL = 1
-#endif
-
 //GPIO
 #define VENDOR_MODE_PIN 13
 #define SERVO_PIN 15
 #define FILL_DISPENSER_BUTTON 0
 #define EMPTY_DISPENSER_BUTTON 35
+
+//APP Configuration
+AppConfiguration& appConfiguration = AppConfiguration::getInstance();
 
 //NFC module
 #if NFC_SPI
@@ -69,6 +74,8 @@ void setup() {
 
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
+
+  appConfiguration.begin();
 
 #if NFC_SPI
   // vspi = new SPIClass(VSPI);
@@ -128,13 +135,16 @@ void setup() {
 }
 
 void loop() {
-  #if WIFI
-    wifiSetup.processDnsServerRequests();
-  #endif
-    if (nfc.isNfcModuleAvailable()) {
-      nfc.scanForTag();
-    }
-    delay(1000);  
+  // #if WIFI
+  //   wifiSetup.processDnsServerRequests();
+  // #endif
+  //   if (nfc.isNfcModuleAvailable()) {
+  //     nfc.scanForTag();
+  //   }
+  while(Serial.available()){
+    appConfiguration.loop();
+  }
+    // delay(10);  
 }
 
 #if WIFI
