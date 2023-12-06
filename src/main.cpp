@@ -110,6 +110,8 @@ void setup() {
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
+  //wifi configuration begin
+  begin();
 #endif
 
   String amount = wifiSetup.getConfiguredAmount();
@@ -130,10 +132,11 @@ void setup() {
 void loop() {
   #if WIFI
     wifiSetup.processDnsServerRequests();
+    handleIncommingStream();
   #endif
-    if (nfc.isNfcModuleAvailable()) {
-      nfc.scanForTag();
-    }
+    // if (nfc.isNfcModuleAvailable()) {
+    //   nfc.scanForTag();
+    // }
     delay(1000);  
 }
 
