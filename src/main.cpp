@@ -1,4 +1,14 @@
 #include <Arduino.h>
+
+//UnComment to show Serial debugging prints
+#if SHOW_MY_DEBUG_SERIAL
+#define MY_DEBUG_SERIAL Serial
+#define SHOW_MY_NFC_DEBUG_SERIAL 1
+#define SHOW_MY_WIFI_DEBUG_SERIAL 1
+#define SHOW_MY_PAYMENT_DEBUG_SERIAL 1
+#define SHOW_MY_DISPENSER_DEBUG_SERIAL 1
+#endif
+
 #include "WiFiConfiguration.h"
 #include "Display.h"
 #include "Nfc.h"
@@ -8,21 +18,13 @@
 
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <TaskScheduler.h>
 
 String ssidPrefix = "LNVending";
 String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based on a prefix and the ESP32's chip ID
 String password = "password123";
 WiFiConfiguration wifiSetup(ssid.c_str(), password.c_str());
 Payment payment = Payment();
-
-//UnComment to show Serial debugging prints
-#if SHOW_MY_DEBUG_SERIAL
-#define MY_DEBUG_SERIAL Serial
-#define SHOW_MY_NFC_DEBUG_SERIAL = 1
-#define SHOW_MY_WIFI_DEBUG_SERIAL = 1
-#define SHOW_MY_PAYMENT_DEBUG_SERIAL = 1
-#define SHOW_MY_DISPENSER_DEBUG_SERIAL = 1
-#endif
 
 //GPIO
 #define VENDOR_MODE_PIN 13
@@ -47,13 +49,6 @@ Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_IRQ, PN532_RESET);
 
 Nfc nfc = Nfc(nfcModule);
 
-Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
-
-void displayWifiSetup(String ssid, String password, String ip);
-// String scannedLnUrlFromNfcTag();
-String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
-void onWiFiEvent(WiFiEvent_t event);
-
 // Nfc callback handlers
 void onNfcModuleConnected();
 void onStartScanningTag();
@@ -61,8 +56,30 @@ void onReadingTag(/*ISO14443aTag tag*/);
 void onReadTagRecord(String stringRecord);
 void onFailure(Nfc::Error error);
 
+// Dispenser
+Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
+
+// helpers
+bool showQrCredentialsScreen = true;
+void displayWifiSetup(String ssid, String password, String ip);
+String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
+void onWiFiEvent(WiFiEvent_t event);
+
 // API call
 void doApiCall(String uri);
+
+// TaskScheduler task functions
+void scanningForNfc();
+void processingSerialStream();
+void processingDnsServerRequests();
+void displayWifiSetup();
+
+// // Tasks
+Scheduler taskScheduler;
+Task displayWifiSetupTask(5000, TASK_FOREVER, &displayWifiSetup);
+Task processingDnsServerRequestsTask(1000, TASK_FOREVER, &processingDnsServerRequests);
+Task processingSerialStreamTask(TASK_IMMEDIATE, TASK_FOREVER, &processingSerialStream);
+Task scanningForNfcTask(TASK_IMMEDIATE, TASK_FOREVER, &scanningForNfc);
 
 void setup() {
   Serial.begin(115200);
@@ -92,26 +109,26 @@ void setup() {
 
 #if WIFI
   wifiSetup.begin();
-  String portalSsid = wifiSetup.getPortalSsid();
-  String portalPassword = wifiSetup.getPortalPassword();
-  String portalIp = wifiSetup.getPortalIp();
-  String qrCredentials = "WIFI:S:" + portalSsid + ";T:WPA2;P:" + password + ";";
 
   //If not setup yet display Portal Access Credentials
   //Waiting for user to configure Wifi via Portal, will show Portal Access Credentials (Alterneting between QR and text)
+  taskScheduler.addTask(processingDnsServerRequestsTask);
+  taskScheduler.addTask(displayWifiSetupTask);
+
+  processingDnsServerRequestsTask.enable();
+  displayWifiSetupTask.enable();
+  
   while(!wifiSetup.isWifiStatusConnected())
   {
-    displayWifiCredentials(portalSsid, portalPassword, portalIp);
-    delay(7000);
-    displayWifiSetupQrCode(qrCredentials);
-    delay(7000);
+    taskScheduler.execute();
   } 
+
+  taskScheduler.deleteTask(displayWifiSetupTask);
+  taskScheduler.deleteTask(processingDnsServerRequestsTask);
 
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
-  //wifi configuration begin
-  begin();
 #endif
 
   String amount = wifiSetup.getConfiguredAmount();
@@ -127,17 +144,51 @@ void setup() {
   nfc.setOnReadingTag(onReadingTag);
   nfc.setOnFailure(onFailure);
   nfc.begin();
+
+  // TaskScheduler
+  taskScheduler.addTask(processingSerialStreamTask);
+  taskScheduler.addTask(scanningForNfcTask);
+
+  processingSerialStreamTask.enable();
+  scanningForNfcTask.enable();
 }
 
 void loop() {
-  #if WIFI
-    wifiSetup.processDnsServerRequests();
-    handleIncommingStream();
-  #endif
-    // if (nfc.isNfcModuleAvailable()) {
-    //   nfc.scanForTag();
-    // }
-    delay(1000);  
+  taskScheduler.execute();
+  delay(1000);  
+}
+
+//////////////////task functions//////////////////
+
+void scanningForNfc() {
+  // log_e();
+  // Serial.println("scanningForNfc");
+  if (nfc.isNfcModuleAvailable()) {
+    nfc.scanForTag();
+  }
+}
+
+void processingSerialStream() {
+  handleIncommingStream();
+}
+
+void processingDnsServerRequests() {
+  log_e();
+  wifiSetup.processDnsServerRequests();
+}
+
+void displayWifiSetup() {
+  String portalSsid = wifiSetup.getPortalSsid();
+  String portalPassword = wifiSetup.getPortalPassword();
+  String portalIp = wifiSetup.getPortalIp();
+  String qrCredentials = "WIFI:S:" + portalSsid + ";T:WPA2;P:" + password + ";";
+
+  if (showQrCredentialsScreen) {
+    displayWifiSetupQrCode(qrCredentials);
+  } else {
+    displayWifiCredentials(portalSsid, portalPassword, portalIp);
+  }
+  showQrCredentialsScreen = !showQrCredentialsScreen;
 }
 
 #if WIFI
@@ -295,7 +346,7 @@ void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
   if(payment.payWithLnUrlWithdrawl(stringRecord)) {
     displayPayed(String(payment.getVendingPrice()));
-    #if WIFI
+    #if DEMO && WIFI
     doApiCall("https://retoolapi.dev/hcHuO8/getPerson");
     #endif
     dispenser.dispense();

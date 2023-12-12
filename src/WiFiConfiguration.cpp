@@ -208,6 +208,9 @@ bool WiFiConfiguration::connectToWifi(String ssid, String password) {
 
 void WiFiConfiguration::startConfigurationPortal() {
     // Create ESP32 AP
+    WiFi.disconnect();   //added to start with the wifi off, avoid crashing
+    WiFi.mode(WIFI_OFF); //added to start with the wifi off, avoid crashing
+    WiFi.mode(WIFI_AP);
     WiFi.softAP(_portalSsid, _portalPassword);
     WiFi.softAPConfig(_portalIp, _portalIp, IPAddress(255, 255, 255, 0));
     _dnsServer.start(53, "*", _portalIp);

@@ -37,11 +37,15 @@ void Nfc::powerDownMode() {
     // nfcAdapter.powerDownMode();
 }
 
+void Nfc::wakeUp() {
+    nfcAdapter.wakeUp();
+}
+
 void Nfc::scanForTag() {
     state = State::scanning;
     startScanningForTag();
-    powerDownMode();
-    if (nfcAdapter.isTagPresent()) {
+    nfcAdapter.wakeUp();
+    if (nfcAdapter.isTagPresent(5000)) {
         tagFound();
     } else {
         noTagFound();

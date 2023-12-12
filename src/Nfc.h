@@ -34,6 +34,7 @@ class Nfc {
     Nfc(Adafruit_PN532 *nfcModule);
     void begin();
     void powerDownMode();
+    void wakeUp();
     void scanForTag();
 
     // Actions

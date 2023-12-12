@@ -29,7 +29,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   Withdrawal withdrawal = getWithdrawal(lnUrl);
 
   if(withdrawal.tag != "withdrawRequest") {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(F("Scanned tag is not LNURL withdraw"));
     MY_PAYMENT_DEBUG_SERIAL.println(F("Present a tag with a LNURL withdraw on it"));
     #endif
@@ -37,11 +37,11 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     return false;
   }
 
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(F("Scanned tag is a LNURL withdrawal request!"));
   #endif
   if(!isAmountInWithdrawableBounds(_amount.toInt(), withdrawal.minWithdrawable,  withdrawal.maxWithdrawable)) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("The requested amount: " + _amount + " is not within this LNURL withdrawal bounds");
     MY_PAYMENT_DEBUG_SERIAL.println(F("Amount not in bounds, can't withdraw from presented voucher."));
     #endif
@@ -49,7 +49,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     return false;
   }
 
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println("The requested amount: " + _amount);
   MY_PAYMENT_DEBUG_SERIAL.println(F(" is within this LNURL withdrawal bounds"));
   MY_PAYMENT_DEBUG_SERIAL.println(F("Continue payment flow by creating invoice"));
@@ -64,7 +64,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
 
 #if !DEMO
   Invoice invoice = getInvoice("BitcoinSwitch QR");
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println("invoice.paymentHash = " + invoice.paymentHash); 
   MY_PAYMENT_DEBUG_SERIAL.println("invoice.paymentRequest = " + invoice.paymentRequest);
   MY_PAYMENT_DEBUG_SERIAL.println("invoice.checkingId = " + invoice.checkingId);  
@@ -73,7 +73,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   #endif
 
   if(invoice.paymentRequest == "") {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(F("Failed to create invoice"));
     #endif
     displayErrorScreen(F("Withdrawal Failure"), F("Failed to create invoice")); 
@@ -90,14 +90,14 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
 #if !DEMO
   bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
   if(!success) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
     #endif
     displayErrorScreen(F("Withdrawal Failure"), ("Failed to request withdrawal invoice"));
     return false;
   } 
 
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(F("Withdrawal request successfull!"));
   #endif
   //TODO: Check if open invoice is paid
@@ -119,7 +119,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   }
 
   if(!isPaid) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(F("Could not confirm withdrawal, the invoice has not been payed in time"));
     #endif
     displayErrorScreen(F("Withdrawal Failure"), F("Could not confirm withdrawal, transaction cancelled"));
@@ -131,7 +131,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   delay(800);
 #endif
 
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(F("Withdrawal successfull, invoice is payed!"));
   #endif
   displayScreen("", F("Withdrawal succeeded!! Thank you!"));
@@ -139,7 +139,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
 }
 
 Withdrawal Payment::getWithdrawal(String uri) {
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println("uri: " + uri);
   #endif
   WiFiClientSecure client;
@@ -148,12 +148,12 @@ Withdrawal Payment::getWithdrawal(String uri) {
   UriComponents uriComponents = UriComponents::Parse(uri.c_str());
   String host = uriComponents.host.c_str();
 
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println("host: " + host);
   #endif
 
   if(!client.connect(host.c_str(), 443)) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("Client couldn't connect to service: " + host + " to get Withdrawl");
     #endif
     _down = true;
@@ -164,7 +164,7 @@ Withdrawal Payment::getWithdrawal(String uri) {
     "User-Agent: ESP32\r\n" +
     "accept: text/html\r\n" +
     "Host: " + host + "\r\n\r\n";
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(request);
   #endif
   client.print(request);
@@ -176,7 +176,7 @@ Withdrawal Payment::getWithdrawal(String uri) {
     }
   }
   String line = client.readString();
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(line);
   #endif
   
@@ -184,7 +184,7 @@ Withdrawal Payment::getWithdrawal(String uri) {
   DynamicJsonDocument doc(capacity);  
   DeserializationError error = deserializeJson(doc, line);
   if(error) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(("deserializeJson() failed: ") + String(error.f_str()));
     #endif
     return {};
@@ -202,7 +202,7 @@ Withdrawal Payment::getWithdrawal(String uri) {
 
 bool Payment::isAmountInWithdrawableBounds(int amount, int minWithdrawable, int maxWithdrawable) {
   int amountInMilliSats = amount * 1000;
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println("((" + String(amountInMilliSats) + " >= " + String(minWithdrawable) + ") && (" + String(amountInMilliSats) + " <= " + String(maxWithdrawable) + "))");
   #endif
   return ((amountInMilliSats >=minWithdrawable) && (amountInMilliSats <= maxWithdrawable));
@@ -215,7 +215,7 @@ Invoice Payment::getInvoice(String description)
   _down = false;
 
   if(!client.connect(_lnbitsServer.c_str(), 443)) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("Client couldn't connect to LNBitsServer to create Invoice");
     #endif
     _down = true;
@@ -234,7 +234,7 @@ Invoice Payment::getInvoice(String description)
                 "\r\n" + 
                 topost + "\n");
   client.print(request);
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(request);
   #endif
   
@@ -249,7 +249,7 @@ Invoice Payment::getInvoice(String description)
   StaticJsonDocument<1000> doc;
   DeserializationError error = deserializeJson(doc, line);
   if(error) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("deserializeJson() failed: " + String(error.f_str()));
     #endif
     return {};
@@ -286,7 +286,7 @@ bool Payment::withdraw(String callback, String k1, String pr) {
                 "accept: text/plain\r\n" +
                 "Host: " + host + "\r\n\r\n");
   client.print(request);
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(request);
   #endif
   
@@ -297,13 +297,13 @@ bool Payment::withdraw(String callback, String k1, String pr) {
     }
   }
   String line = client.readString();
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(line);
   #endif
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, line);
   if(error) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("deserializeJson() failed: " + String(error.f_str()));
     #endif
     return false;
@@ -318,7 +318,7 @@ bool Payment::checkInvoice(String invoiceId) {
   _down = false;
 
   if(!client.connect(_lnbitsServer.c_str(), 443)) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("Client couldn't connect to LNBitsServer to check Invoice");
     #endif
     _down = true;
@@ -332,7 +332,7 @@ bool Payment::checkInvoice(String invoiceId) {
                 "Content-Type: application/json\r\n" +
                 "Connection: close\r\n\r\n");
   client.print(request);
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(request);
   #endif
   
@@ -343,13 +343,13 @@ bool Payment::checkInvoice(String invoiceId) {
     }
   }
   String line = client.readString();
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(line);
   #endif
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, line);
   if(error) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("deserializeJson() failed: " + String(error.f_str()));
     #endif
     return false;
@@ -359,7 +359,7 @@ bool Payment::checkInvoice(String invoiceId) {
 }
 
 String Payment::getUrl(String string) {
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(string);
   #endif
 
@@ -368,11 +368,11 @@ String Payment::getUrl(String string) {
   
   // If "://" is found remove the uri from the string
   if (index != -1) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(string.substring(0,index));
     #endif
     string.remove(0,index + 3);
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(string);
     #endif
   }
@@ -381,12 +381,12 @@ String Payment::getUrl(String string) {
   String uppercaseString = string;
   uppercaseString.toUpperCase();
   if (uppercaseString.startsWith("LIGHTNING:")) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL  
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL  
     MY_PAYMENT_DEBUG_SERIAL.println("string.startsWith(LIGHTNING:");
     MY_PAYMENT_DEBUG_SERIAL.println(string);
     #endif
     string.remove(0,10);
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("remove(0,10)");
     MY_PAYMENT_DEBUG_SERIAL.println(string);
     #endif
@@ -396,11 +396,15 @@ String Payment::getUrl(String string) {
   uppercaseString.toUpperCase();
 // If LNURL, decode it in uppercase to Url
   if (uppercaseString.startsWith("LNURL")) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println(uppercaseString);
     MY_PAYMENT_DEBUG_SERIAL.println("Lets decode it ..\n");
     #endif
     string = decode(uppercaseString);
+  }
+
+  if (string == "") {
+    return "";
   }
 
   // make sure it has a protocol, otherwise use https:// 
@@ -426,8 +430,9 @@ String Payment::decode(String lnUrl) {
   }
 
   if(!client.connect(_lnbitsServer.c_str(), 443)) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("Client couldn't connect to LNBitsServer to decode LNURL");
+    MY_PAYMENT_DEBUG_SERIAL.println(host);
     #endif
     _down = true;
     return "";   
@@ -445,7 +450,7 @@ String Payment::decode(String lnUrl) {
                 "\r\n" + 
                 body + "\n";
   client.print(request);
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(request);
   #endif
    
@@ -456,7 +461,7 @@ String Payment::decode(String lnUrl) {
     }
   }
   String line = client.readString();
-  #ifdef MY_PAYMENT_DEBUG_SERIAL
+  #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
   MY_PAYMENT_DEBUG_SERIAL.println(line);
   #endif
   const size_t capacity = JSON_OBJECT_SIZE(2) + 800;
@@ -464,7 +469,7 @@ String Payment::decode(String lnUrl) {
   
   DeserializationError error = deserializeJson(doc, line);
   if(error) {
-    #ifdef MY_PAYMENT_DEBUG_SERIAL
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("deserializeJson() failed: " + String(error.f_str()));
     #endif
     return "";
