@@ -11,11 +11,12 @@
 
 #include "WiFiConfiguration.h"
 #include "Display.h"
-#include "Nfc.h"
+// #include "NfcWrapper.h"
 #include "UriComponents.h"
 #include "Payment.h"
 #include "Dispenser.h"
 
+#include <NfcWrapper.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <TaskScheduler.h>
@@ -47,14 +48,14 @@ Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_IRQ, PN532_RESET);
 #error "Need NFC interface defined! Define NFC_SPI=1 or NFC_I2C=1!"
 #endif
 
-Nfc nfc = Nfc(nfcModule);
+NfcWrapper nfc = NfcWrapper(nfcModule);
 
-// Nfc callback handlers
+// NfcWrapper callback handlers
 void onNfcModuleConnected();
 void onStartScanningTag();
 void onReadingTag(/*ISO14443aTag tag*/);
 void onReadTagRecord(String stringRecord);
-void onFailure(Nfc::Error error);
+void onFailure(NfcWrapper::Error error);
 
 // Dispenser
 Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
@@ -139,9 +140,9 @@ void setup() {
 
   //setup nfc callback handlers
   nfc.setOnNfcModuleConnected(onNfcModuleConnected);
-  nfc.setOnStartScanningTag(onStartScanningTag);
+  nfc.setOnStartScanningForTag(onStartScanningTag);
   nfc.setOnReadMessageRecord(onReadTagRecord);
-  nfc.setOnReadingTag(onReadingTag);
+  nfc.setOnStartReadingTag(onReadingTag);
   nfc.setOnFailure(onFailure);
   nfc.begin();
 
@@ -353,27 +354,27 @@ void onReadTagRecord(String stringRecord) {
   }
 }
 
-void onFailure(Nfc::Error error) {
-  if (error == Nfc::Error::scanFailed) {
+void onFailure(NfcWrapper::Error error) {
+  if (error == NfcWrapper::Error::scanFailed) {
       debugDisplayText("No NFC card detected yet..");
       return;
   }
 
   String errorString;
   switch (error) {
-    case Nfc::Error::connectionModuleFailed:
+    case NfcWrapper::Error::connectionModuleFailed:
       errorString = "Not connected to NFC module";
       break;
-    case Nfc::Error::scanFailed:
+    case NfcWrapper::Error::scanFailed:
       errorString = "Failed ";
       break;
-    case Nfc::Error::readFailed:
+    case NfcWrapper::Error::readFailed:
       errorString = "Failed to read card";
       break;
-    case Nfc::Error::identifyFailed:
+    case NfcWrapper::Error::identifyFailed:
       errorString = "Couldn't identify tag";
       break;
-    case Nfc::Error::releaseFailed:
+    case NfcWrapper::Error::releaseFailed:
       errorString = "Failed to release tag properly";
       break;
     default:
@@ -382,7 +383,7 @@ void onFailure(Nfc::Error error) {
   }
   displayErrorScreen("NFC payment Error", errorString);
 
-  if (error == Nfc::Error::connectionModuleFailed) {
+  if (error == NfcWrapper::Error::connectionModuleFailed) {
     delay(2000);
     nfc.powerDownMode();
     nfc.begin();
