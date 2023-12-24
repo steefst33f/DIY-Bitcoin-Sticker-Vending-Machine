@@ -60,7 +60,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
 #endif
   
 
-  displayScreen("", "Creating invoice..");
+  // displayScreen("", "Creating invoice..");
 
 #if !DEMO
   Invoice invoice = getInvoice("BitcoinSwitch QR");
@@ -85,7 +85,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   delay(300);
 #endif
 
-  displayScreen("", F("Requesting withdrawal..")); 
+  // displayScreen("", F("Requesting withdrawal..")); 
 
 #if !DEMO
   bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
@@ -109,11 +109,11 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
 #if DEMO
   delay(500);
 #endif
-  displayScreen("", F("Waiting for payment confirmation..")); 
+  // displayScreen("", F("Waiting for payment confirmation..")); 
   
 #if !DEMO
-  while(!isPaid && (numberOfTries < 3)) {
-    delay(2000);
+  while(!isPaid && (numberOfTries < 30)) {
+    delay(100);
     isPaid = checkInvoice(invoice.checkingId);
     numberOfTries++;
   }
