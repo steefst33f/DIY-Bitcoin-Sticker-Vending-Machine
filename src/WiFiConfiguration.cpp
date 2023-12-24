@@ -1,5 +1,6 @@
 #include "WiFiConfiguration.h"
 #include "SPIFFS.h"
+#include <FS.h>
 #include <WiFi.h>
 #include <StreamUtils.h>
 #include <ArduinoJson.h>
@@ -23,6 +24,7 @@ bool handleReceivedRequest(DynamicJsonDocument request);
 bool hasReceivedSerialRequest(DeserializationError error);
 
 LoggingStream loggingStream(Serial, Serial);
+fs::SPIFFSFS &FlashFS = SPIFFS;
 
 void begin() {
     Serial.begin(115200);
@@ -163,6 +165,7 @@ WiFiConfiguration::WiFiConfiguration(const char* portalSsid, const char* portalP
     : _portalSsid(portalSsid), _portalPassword(portalPassword), _portalIp(192, 168, 4, 1), _server(80), _dnsServer() {}
 
 void WiFiConfiguration::begin() {
+    FlashFS.begin(true);
     String savedSsid = getConfiguredSsid();
     String savedPassword = getConfiguredPassword();
 
