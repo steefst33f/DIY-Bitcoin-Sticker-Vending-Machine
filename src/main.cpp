@@ -118,9 +118,12 @@ void setup() {
   //Waiting for user to configure Wifi via Portal, will show Portal Access Credentials (Alterneting between QR and text)
   taskScheduler.addTask(processingDnsServerRequestsTask);
   taskScheduler.addTask(displayWifiSetupTask);
+  taskScheduler.addTask(processingSerialStreamTask);
+
 
   processingDnsServerRequestsTask.enable();
   displayWifiSetupTask.enable();
+  processingSerialStreamTask.enable();
   
   while(!wifiSetup.isWifiStatusConnected())
   {
@@ -129,6 +132,7 @@ void setup() {
 
   taskScheduler.deleteTask(displayWifiSetupTask);
   taskScheduler.deleteTask(processingDnsServerRequestsTask);
+  taskScheduler.deleteTask(processingSerialStreamTask);
 
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
@@ -150,11 +154,9 @@ void setup() {
   nfc.begin();
 
   // TaskScheduler
-  taskScheduler.addTask(processingSerialStreamTask);
   taskScheduler.addTask(scanningForNfcTask);
   taskScheduler.addTask(checkForNewPaymentsTask);
 
-  processingSerialStreamTask.enable();
   scanningForNfcTask.enable();
   checkForNewPaymentsTask.enable();
 }
@@ -358,14 +360,7 @@ void onReadingTag(/*ISO14443aTag tag*/) {
 
 void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
-  if(payment.payWithLnUrlWithdrawl(stringRecord)) {
-    // displayPayed(String(payment.getVendingPrice()));
-    // #if DEMO && WIFI
-    // doApiCall("https://retoolapi.dev/hcHuO8/getPerson");
-    // #endif
-    // dispenser.dispense();
-
-  }
+  payment.payWithLnUrlWithdrawl(stringRecord);
 }
 
 void onFailure(NfcWrapper::Error error) {
