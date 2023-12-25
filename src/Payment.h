@@ -28,9 +28,12 @@ class Payment {
         void configure(const char*  amount, const char*  lnbitsServer, const char*  invoiceKey);
         int getVendingPrice();
         bool payWithLnUrlWithdrawl(String url);
+        bool hasReceivedNewPayment(int amountToPay);
 
     private:
 
+        int _oldBalance;
+        int _balance;
         String _amount;
         String _lnbitsServer;
         String _invoiceKey;
@@ -49,6 +52,8 @@ class Payment {
         bool checkInvoice(String invoiceId);
         String decode(String lnUrl);
         String getUrl(String string);
+        bool updateBalance();
+
 };
 
 #endif

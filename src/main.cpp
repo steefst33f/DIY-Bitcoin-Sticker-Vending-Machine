@@ -71,6 +71,7 @@ void doApiCall(String uri);
 
 // TaskScheduler task functions
 void scanningForNfc();
+void checkForNewPayments();
 void processingSerialStream();
 void processingDnsServerRequests();
 void displayWifiSetup();
@@ -81,6 +82,8 @@ Task displayWifiSetupTask(5000, TASK_FOREVER, &displayWifiSetup);
 Task processingDnsServerRequestsTask(1000, TASK_FOREVER, &processingDnsServerRequests);
 Task processingSerialStreamTask(TASK_IMMEDIATE, TASK_FOREVER, &processingSerialStream);
 Task scanningForNfcTask(TASK_IMMEDIATE, TASK_FOREVER, &scanningForNfc);
+Task checkForNewPaymentsTask(3000, TASK_FOREVER, &checkForNewPayments);
+
 
 void setup() {
   Serial.begin(115200);
@@ -149,9 +152,11 @@ void setup() {
   // TaskScheduler
   taskScheduler.addTask(processingSerialStreamTask);
   taskScheduler.addTask(scanningForNfcTask);
+  taskScheduler.addTask(checkForNewPaymentsTask);
 
   processingSerialStreamTask.enable();
   scanningForNfcTask.enable();
+  checkForNewPaymentsTask.enable();
 }
 
 void loop() {
@@ -166,6 +171,14 @@ void scanningForNfc() {
   // Serial.println("scanningForNfc");
   if (nfc.isNfcModuleAvailable()) {
     nfc.scanForTag();
+  }
+}
+
+void checkForNewPayments() {
+  log_e();
+  if (payment.hasReceivedNewPayment(payment.getVendingPrice())) {
+    displayPayed(String(payment.getVendingPrice()));
+    dispenser.dispense();
   }
 }
 
@@ -346,11 +359,12 @@ void onReadingTag(/*ISO14443aTag tag*/) {
 void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
   if(payment.payWithLnUrlWithdrawl(stringRecord)) {
-    displayPayed(String(payment.getVendingPrice()));
-    #if DEMO && WIFI
-    doApiCall("https://retoolapi.dev/hcHuO8/getPerson");
-    #endif
-    dispenser.dispense();
+    // displayPayed(String(payment.getVendingPrice()));
+    // #if DEMO && WIFI
+    // doApiCall("https://retoolapi.dev/hcHuO8/getPerson");
+    // #endif
+    // dispenser.dispense();
+
   }
 }
 

@@ -15,6 +15,8 @@ void Payment::configure(const char*  amount, const char*  lnbitsServer, const ch
   _amount = amount;
   _lnbitsServer = lnbitsServer;
   _invoiceKey = invoiceKey;
+  _balance = -1;
+  _oldBalance = -1;
 };
 
 int Payment::getVendingPrice() {
@@ -58,9 +60,8 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   #endif
 
 #endif
-  
 
-  // displayScreen("", "Creating invoice..");
+  displayScreen("", "Creating invoice..");
 
 #if !DEMO
   Invoice invoice = getInvoice("BitcoinSwitch QR");
@@ -85,7 +86,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   delay(300);
 #endif
 
-  // displayScreen("", F("Requesting withdrawal..")); 
+  displayScreen("", F("Requesting withdrawal..")); 
 
 #if !DEMO
   bool success = withdraw(withdrawal.callback, withdrawal.k1, invoice.paymentRequest);
@@ -477,4 +478,74 @@ String Payment::decode(String lnUrl) {
   
   log_e();
   return doc["domain"];
+}
+
+bool Payment::hasReceivedNewPayment(int amountToPay) {
+  _oldBalance = _balance;
+  if (!updateBalance()) {
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
+    MY_PAYMENT_DEBUG_SERIAL.println("Failed to get Balance update! Cant confirm payments"));
+    #endif
+    return false;
+  }
+
+  // if there is no base balance yet, set current one as base
+  if (_oldBalance < 0) {
+    _oldBalance = _balance;
+  }
+
+  bool isPayed = ((_oldBalance + amountToPay) < _balance);
+  if (isPayed) {
+    _oldBalance = _balance;
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
+    MY_PAYMENT_DEBUG_SERIAL.println("New Payment(s) Received with a total of: " String(_balance - _oldBalance));
+    #endif
+  }
+  return isPayed;
+}
+
+bool Payment::updateBalance() {
+  WiFiClientSecure client;
+  client.setInsecure();
+  const char* lnbitsserver = _lnbitsServer.c_str();
+  const char* invoicekey = _invoiceKey.c_str();
+  _down = false;
+
+  if(!client.connect(lnbitsserver, 443)) {
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
+    MY_PAYMENT_DEBUG_SERIAL.println("Client couldn't connect to " + String(lnbitsserver) + " to check Balance");
+    #endif
+    _down = true;
+    WiFi.printDiag(Serial);
+    return false;   
+  }
+
+  String url = "/api/v1/wallet";
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                "Host: " + lnbitsserver + "\r\n" +
+                "X-Api-Key: "+ invoicekey +" \r\n" +
+                "User-Agent: ESP32\r\n" +
+                "Content-Type: application/json\r\n" +
+                "Connection: close\r\n\r\n");
+   while(client.connected()) {
+    String line = client.readStringUntil('\n');
+    if(line == "\r") {
+      break;
+    }
+  }
+
+  String line = client.readString();
+  Serial.println(line);
+  StaticJsonDocument<500> doc;
+  DeserializationError error = deserializeJson(doc, line);
+  if(error) {
+    #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
+    MY_PAYMENT_DEBUG_SERIAL.print(F("deserializeJson() failed: "));
+    MY_PAYMENT_DEBUG_SERIAL.println(error.f_str());
+    #endif
+    return false;
+  }
+  
+  _balance = doc["balance"];
+  return true;
 }
