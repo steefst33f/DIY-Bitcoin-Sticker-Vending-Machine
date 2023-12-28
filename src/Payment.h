@@ -29,6 +29,7 @@ class Payment {
         int getVendingPrice();
         bool payWithLnUrlWithdrawl(String url);
         bool hasReceivedNewPayment(int amountToPay);
+        bool inProgress();
 
     private:
 
@@ -44,6 +45,7 @@ class Payment {
 
         bool _down;
         bool _paid;
+        bool _inProgress;
 
         bool withdraw(String callback, String k1, String pr);
         Withdrawal getWithdrawal(String uri);

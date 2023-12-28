@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include "UriComponents.h"
 
+#define SHOW_MY_PAYMENT_DEBUG_SERIAL 1
 #if SHOW_MY_PAYMENT_DEBUG_SERIAL
 #define MY_PAYMENT_DEBUG_SERIAL Serial
 #endif
@@ -23,9 +24,17 @@ int Payment::getVendingPrice() {
   return _amount.toInt();
 }
 
+bool Payment::inProgress() {
+  return _inProgress;
+}
+
 bool Payment::payWithLnUrlWithdrawl(String url) {
+  _inProgress = true;
   String lnUrl = getUrl(url);
-  if (lnUrl == "") { return false; }
+  if (lnUrl == "") { 
+    _inProgress = false;
+    return false; 
+  }
 
 #if !DEMO
   Withdrawal withdrawal = getWithdrawal(lnUrl);
@@ -36,6 +45,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     MY_PAYMENT_DEBUG_SERIAL.println(F("Present a tag with a LNURL withdraw on it"));
     #endif
     displayErrorScreen(F("Withdrawal Failure"),F("Scanned tag is not LNURL withdraw \r\nPresent a tag with a LNURL withdraw on it"));
+    _inProgress = false;
     return false;
   }
 
@@ -48,6 +58,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     MY_PAYMENT_DEBUG_SERIAL.println(F("Amount not in bounds, can't withdraw from presented voucher."));
     #endif
     displayErrorScreen(F("Withdrawal Failure"), "Amount not in bounds.\n Card only alows amounts between: " + String(withdrawal.minWithdrawable) + " - " + String(withdrawal.maxWithdrawable) + " sats");
+    _inProgress = false;
     return false;
   }
 
@@ -78,6 +89,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     MY_PAYMENT_DEBUG_SERIAL.println(F("Failed to create invoice"));
     #endif
     displayErrorScreen(F("Withdrawal Failure"), F("Failed to create invoice")); 
+    _inProgress = false;
     return false;
   }
 #endif
@@ -95,6 +107,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     MY_PAYMENT_DEBUG_SERIAL.println(F("Failed to request withdrawalfor invoice request with memo: ")); // + invoice.memo);
     #endif
     displayErrorScreen(F("Withdrawal Failure"), ("Failed to request withdrawal invoice"));
+    _inProgress = false;
     return false;
   } 
 
@@ -113,8 +126,9 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   // displayScreen("", F("Waiting for payment confirmation..")); 
   
 #if !DEMO
-  while(!isPaid && (numberOfTries < 30)) {
+  while(!isPaid && (numberOfTries < 10)) {
     delay(100);
+    Serial.println("Check if incoice if paid..");
     isPaid = checkInvoice(invoice.checkingId);
     numberOfTries++;
   }
@@ -124,6 +138,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
     MY_PAYMENT_DEBUG_SERIAL.println(F("Could not confirm withdrawal, the invoice has not been payed in time"));
     #endif
     displayErrorScreen(F("Withdrawal Failure"), F("Could not confirm withdrawal, transaction cancelled"));
+    _inProgress = false;
     return false;
   }
 #endif
@@ -136,6 +151,7 @@ bool Payment::payWithLnUrlWithdrawl(String url) {
   MY_PAYMENT_DEBUG_SERIAL.println(F("Withdrawal successfull, invoice is payed!"));
   #endif
   displayScreen("", F("Withdrawal succeeded!! Thank you!"));
+  _inProgress = false;
   return true;
 }
 
@@ -279,7 +295,7 @@ bool Payment::withdraw(String callback, String k1, String pr) {
 
   if(!client.connect(host.c_str(), 443)) {
     _down = true;
-    return {};   
+    return false;   
   }
   String requestParameters = ("k1=" + k1 + "&pr=" + pr);
   String request = (String("GET ") + callback + "?" + requestParameters + " HTTP/1.0\r\n" +
@@ -303,13 +319,20 @@ bool Payment::withdraw(String callback, String k1, String pr) {
   #endif
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, line);
+  Serial.println("error = " + String(error.f_str()));
   if(error) {
     #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("deserializeJson() failed: " + String(error.f_str()));
     #endif
     return false;
   }
-  bool isOk = doc["status"];
+  String status = doc["status"];
+  bool isOk = status.equalsIgnoreCase("ok");
+  if (!isOk) {
+      displayErrorScreen(F("Withdrawal Failure"), (doc["reason"]));
+      delay(2000);
+  }
+
   return isOk;
 }
 
@@ -433,7 +456,7 @@ String Payment::decode(String lnUrl) {
   if(!client.connect(_lnbitsServer.c_str(), 443)) {
     #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
     MY_PAYMENT_DEBUG_SERIAL.println("Client couldn't connect to LNBitsServer to decode LNURL");
-    MY_PAYMENT_DEBUG_SERIAL.println(host);
+    MY_PAYMENT_DEBUG_SERIAL.println(_lnbitsServer);
     #endif
     _down = true;
     return "";   
@@ -484,7 +507,7 @@ bool Payment::hasReceivedNewPayment(int amountToPay) {
   _oldBalance = _balance;
   if (!updateBalance()) {
     #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
-    MY_PAYMENT_DEBUG_SERIAL.println("Failed to get Balance update! Cant confirm payments"));
+    MY_PAYMENT_DEBUG_SERIAL.println("Failed to get Balance update! Cant confirm payments");
     #endif
     return false;
   }
@@ -498,7 +521,7 @@ bool Payment::hasReceivedNewPayment(int amountToPay) {
   if (isPayed) {
     _oldBalance = _balance;
     #ifdef SHOW_MY_PAYMENT_DEBUG_SERIAL
-    MY_PAYMENT_DEBUG_SERIAL.println("New Payment(s) Received with a total of: " String(_balance - _oldBalance));
+    MY_PAYMENT_DEBUG_SERIAL.println("New Payment(s) Received with a total of: " + String(_balance - _oldBalance));
     #endif
   }
   return isPayed;

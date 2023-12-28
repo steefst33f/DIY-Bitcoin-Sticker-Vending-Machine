@@ -72,7 +72,6 @@ void doApiCall(String uri);
 // TaskScheduler task functions
 void scanningForNfc();
 void checkForNewPayments();
-void processingSerialStream();
 void processingDnsServerRequests();
 void displayWifiSetup();
 
@@ -80,7 +79,6 @@ void displayWifiSetup();
 Scheduler taskScheduler;
 Task displayWifiSetupTask(5000, TASK_FOREVER, &displayWifiSetup);
 Task processingDnsServerRequestsTask(1000, TASK_FOREVER, &processingDnsServerRequests);
-Task processingSerialStreamTask(TASK_IMMEDIATE, TASK_FOREVER, &processingSerialStream);
 Task scanningForNfcTask(TASK_IMMEDIATE, TASK_FOREVER, &scanningForNfc);
 Task checkForNewPaymentsTask(3000, TASK_FOREVER, &checkForNewPayments);
 
@@ -118,13 +116,10 @@ void setup() {
   //Waiting for user to configure Wifi via Portal, will show Portal Access Credentials (Alterneting between QR and text)
   taskScheduler.addTask(processingDnsServerRequestsTask);
   taskScheduler.addTask(displayWifiSetupTask);
-  taskScheduler.addTask(processingSerialStreamTask);
-
 
   processingDnsServerRequestsTask.enable();
   displayWifiSetupTask.enable();
-  processingSerialStreamTask.enable();
-  
+
   while(!wifiSetup.isWifiStatusConnected())
   {
     taskScheduler.execute();
@@ -132,8 +127,6 @@ void setup() {
 
   taskScheduler.deleteTask(displayWifiSetupTask);
   taskScheduler.deleteTask(processingDnsServerRequestsTask);
-  taskScheduler.deleteTask(processingSerialStreamTask);
-
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
@@ -163,14 +156,12 @@ void setup() {
 
 void loop() {
   taskScheduler.execute();
-  delay(1000);  
+  // delay(1000);  
 }
 
 //////////////////task functions//////////////////
 
 void scanningForNfc() {
-  // log_e();
-  // Serial.println("scanningForNfc");
   if (nfc.isNfcModuleAvailable()) {
     nfc.scanForTag();
   }
@@ -184,9 +175,6 @@ void checkForNewPayments() {
   }
 }
 
-void processingSerialStream() {
-  handleIncommingStream();
-}
 
 void processingDnsServerRequests() {
   log_e();
@@ -360,7 +348,22 @@ void onReadingTag(/*ISO14443aTag tag*/) {
 
 void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
+  checkForNewPaymentsTask.abort();
+  checkForNewPaymentsTask.disable();
+  scanningForNfcTask.abort();
+  scanningForNfcTask.disable();
+  log_e();
   payment.payWithLnUrlWithdrawl(stringRecord);
+  while(payment.inProgress()) {
+    //Wait untill payment is done, succes or unsuccesfully
+    log_e();
+
+  }
+  log_e();
+  checkForNewPaymentsTask.enable();
+  checkForNewPaymentsTask.restart();
+  scanningForNfcTask.enable();
+  scanningForNfcTask.restart();
 }
 
 void onFailure(NfcWrapper::Error error) {

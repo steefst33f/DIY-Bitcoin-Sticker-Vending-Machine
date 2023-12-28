@@ -29,8 +29,9 @@ fs::SPIFFSFS &FlashFS = SPIFFS;
 void begin() {
     Serial.begin(115200);
     // Set WiFi to station mode and disconnect from an AP if it was previously connected
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    WiFi.disconnect();   //added to start with the wifi off, avoid crashing
+    WiFi.mode(WIFI_OFF); //added to start with the wifi off, avoid crashing
+    WiFi.mode(WIFI_AP_STA);
 }
 
 void handleIncommingStream() {
@@ -170,7 +171,7 @@ void WiFiConfiguration::begin() {
     String savedPassword = getConfiguredPassword();
 
     // Set WiFi to station mode and disconnect from AP if previously connected
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_AP_STA);
     WiFi.disconnect();
 
     if (!connectToWifi(savedSsid, savedPassword)) {
@@ -213,7 +214,7 @@ void WiFiConfiguration::startConfigurationPortal() {
     // Create ESP32 AP
     WiFi.disconnect();   //added to start with the wifi off, avoid crashing
     WiFi.mode(WIFI_OFF); //added to start with the wifi off, avoid crashing
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(_portalSsid, _portalPassword);
     WiFi.softAPConfig(_portalIp, _portalIp, IPAddress(255, 255, 255, 0));
     _dnsServer.start(53, "*", _portalIp);
