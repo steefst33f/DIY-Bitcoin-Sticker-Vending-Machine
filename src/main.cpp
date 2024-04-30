@@ -1,13 +1,25 @@
 #include <Arduino.h>
+
+//UnComment to show Serial debugging prints
+#if SHOW_MY_DEBUG_SERIAL
+#define MY_DEBUG_SERIAL Serial
+#define SHOW_MY_NFC_DEBUG_SERIAL 1
+#define SHOW_MY_WIFI_DEBUG_SERIAL 1
+#define SHOW_MY_PAYMENT_DEBUG_SERIAL 1
+#define SHOW_MY_DISPENSER_DEBUG_SERIAL 1
+#endif
+
 #include "WiFiConfiguration.h"
 #include "Display.h"
-#include "Nfc.h"
+// #include "NfcWrapper.h"
 #include "UriComponents.h"
 #include "Payment.h"
 #include "Dispenser.h"
 
+#include <NfcWrapper.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <TaskScheduler.h>
 
 String ssidPrefix = "LNVending";
 String ssid = ssidPrefix + String(ESP.getEfuseMac(), HEX);  // Unique SSID based on a prefix and the ESP32's chip ID
@@ -16,25 +28,60 @@ WiFiConfiguration wifiSetup(ssid.c_str(), password.c_str());
 Payment payment = Payment();
 
 //GPIO
-#define VENDOR_MODE_PIN 33
-#define SERVO_PIN 27
+#define VENDOR_MODE_PIN 13
+#define SERVO_PIN 15
 #define FILL_DISPENSER_BUTTON 0
 #define EMPTY_DISPENSER_BUTTON 35
 
-Nfc nfc = Nfc();
-Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
+//NFC module
+#if NFC_SPI
+#define PN532_SCK  (25)
+#define PN532_MISO (27)
+#define PN532_MOSI (26)
+#define PN532_SS   (33)
+Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+#elif NFC_I2C
+#define PN532_IRQ     (2)
+#define PN532_RESET   (3)
+Adafruit_PN532 *nfcModule = new Adafruit_PN532(PN532_IRQ, PN532_RESET);
+#else
+#error "Need NFC interface defined! Define NFC_SPI=1 or NFC_I2C=1!"
+#endif
 
-void displayWifiSetup(String ssid, String password, String ip);
-// String scannedLnUrlFromNfcTag();
-String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
-void onWiFiEvent(WiFiEvent_t event);
+NfcWrapper nfc = NfcWrapper(nfcModule);
 
-// Nfc callback handlers
+// NfcWrapper callback handlers
 void onNfcModuleConnected();
 void onStartScanningTag();
 void onReadingTag(/*ISO14443aTag tag*/);
 void onReadTagRecord(String stringRecord);
-void onFailure(Nfc::Error error);
+void onFailure(NfcWrapper::Error error);
+
+// Dispenser
+Dispenser dispenser = Dispenser(VENDOR_MODE_PIN, SERVO_PIN, FILL_DISPENSER_BUTTON, EMPTY_DISPENSER_BUTTON);
+
+// helpers
+bool showQrCredentialsScreen = true;
+void displayWifiSetup(String ssid, String password, String ip);
+String convertToStringFromBytes(byte dataArray[], int sizeOfArray);
+void onWiFiEvent(WiFiEvent_t event);
+
+// API call
+void doApiCall(String uri);
+
+// TaskScheduler task functions
+void scanningForNfc();
+void checkForNewPayments();
+void processingDnsServerRequests();
+void displayWifiSetup();
+
+// // Tasks
+Scheduler taskScheduler;
+Task displayWifiSetupTask(5000, TASK_FOREVER, &displayWifiSetup);
+Task processingDnsServerRequestsTask(1000, TASK_FOREVER, &processingDnsServerRequests);
+Task scanningForNfcTask(TASK_IMMEDIATE, TASK_FOREVER, &scanningForNfc);
+Task checkForNewPaymentsTask(3000, TASK_FOREVER, &checkForNewPayments);
+
 
 void setup() {
   Serial.begin(115200);
@@ -42,33 +89,48 @@ void setup() {
   Serial.println(__FILE__);
   Serial.println("Compiled: " __DATE__ ", " __TIME__);
 
+#if NFC_SPI
+  // vspi = new SPIClass(VSPI);
+  pinMode(PN532_SS, OUTPUT);
+  pinMode(PN532_SCK, OUTPUT);
+  pinMode(PN532_MISO, INPUT);
+  pinMode(PN532_MOSI, OUTPUT);
+
+  SPI.begin(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+#endif
   initDisplay();
 
   displayLogo();
   delay(2000);
 
   dispenser.begin();
-  dispenser.waitForVendorMode(3000);
 
+#if !DEMO
+  // dispenser.waitForVendorMode(3000);
+#endif
+
+#if WIFI
   wifiSetup.begin();
-  String portalSsid = wifiSetup.getPortalSsid();
-  String portalPassword = wifiSetup.getPortalPassword();
-  String portalIp = wifiSetup.getPortalIp();
-  String qrCredentials = "WIFI:S:" + portalSsid + ";T:WPA2;P:" + password + ";";
 
   //If not setup yet display Portal Access Credentials
   //Waiting for user to configure Wifi via Portal, will show Portal Access Credentials (Alterneting between QR and text)
+  taskScheduler.addTask(processingDnsServerRequestsTask);
+  taskScheduler.addTask(displayWifiSetupTask);
+
+  processingDnsServerRequestsTask.enable();
+  displayWifiSetupTask.enable();
+
   while(!wifiSetup.isWifiStatusConnected())
   {
-    displayWifiCredentials(portalSsid, portalPassword, portalIp);
-    delay(7000);
-    displayWifiSetupQrCode(qrCredentials);
-    delay(7000);
+    taskScheduler.execute();
   } 
 
+  taskScheduler.deleteTask(displayWifiSetupTask);
+  taskScheduler.deleteTask(processingDnsServerRequestsTask);
   //Once connected start handling Wifi events and display connected
   displayWifiConnected(wifiSetup.getConfiguredSsid(), wifiSetup.getLocalIp());
   wifiSetup.handleWifiEvents(onWiFiEvent);
+#endif
 
   String amount = wifiSetup.getConfiguredAmount();
   String lnbitsServer = wifiSetup.getConfiguredLnbitsServer();
@@ -78,23 +140,62 @@ void setup() {
 
   //setup nfc callback handlers
   nfc.setOnNfcModuleConnected(onNfcModuleConnected);
-  nfc.setOnStartScanningTag(onStartScanningTag);
+  nfc.setOnStartScanningForTag(onStartScanningTag);
   nfc.setOnReadMessageRecord(onReadTagRecord);
-  nfc.setOnReadingTag(onReadingTag);
+  nfc.setOnStartReadingTag(onReadingTag);
   nfc.setOnFailure(onFailure);
   nfc.begin();
+
+  // TaskScheduler
+  taskScheduler.addTask(scanningForNfcTask);
+  taskScheduler.addTask(checkForNewPaymentsTask);
+
+  scanningForNfcTask.enable();
+  checkForNewPaymentsTask.enable();
 }
 
 void loop() {
-    wifiSetup.processDnsServerRequests();
-    nfc.powerDownMode();
-    nfc.begin();
-    if (nfc.isNfcModuleAvailable()) {
-      nfc.scanForTag();
-    }
-    delay(5000);  
+  taskScheduler.execute();
+  // delay(1000);  
 }
 
+//////////////////task functions//////////////////
+
+void scanningForNfc() {
+  if (nfc.isNfcModuleAvailable()) {
+    nfc.scanForTag();
+  }
+}
+
+void checkForNewPayments() {
+  log_e();
+  if (payment.hasReceivedNewPayment(payment.getVendingPrice())) {
+    displayPayed(String(payment.getVendingPrice()));
+    dispenser.dispense();
+  }
+}
+
+
+void processingDnsServerRequests() {
+  log_e();
+  wifiSetup.processDnsServerRequests();
+}
+
+void displayWifiSetup() {
+  String portalSsid = wifiSetup.getPortalSsid();
+  String portalPassword = wifiSetup.getPortalPassword();
+  String portalIp = wifiSetup.getPortalIp();
+  String qrCredentials = "WIFI:S:" + portalSsid + ";T:WPA2;P:" + password + ";";
+
+  if (showQrCredentialsScreen) {
+    displayWifiSetupQrCode(qrCredentials);
+  } else {
+    displayWifiCredentials(portalSsid, portalPassword, portalIp);
+  }
+  showQrCredentialsScreen = !showQrCredentialsScreen;
+}
+
+#if WIFI
 // Wifi events handler
 void onWiFiEvent(WiFiEvent_t event) {
   String message = "";
@@ -103,97 +204,134 @@ void onWiFiEvent(WiFiEvent_t event) {
   switch (event) {
     case SYSTEM_EVENT_STA_GOT_IP:
       message = "Connected to Wi-Fi, IP address: " + localIp;
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayWifiConnected(ssid, localIp);
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
       message = "Wi-Fi disconnected\nAttempting to reconnect...";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayErrorScreen("Wifi Error", message);
       WiFi.reconnect();
       break;
     case SYSTEM_EVENT_WIFI_READY:
       message = "Wi-Fi interface ready";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi Ready", message);
       break;
     case SYSTEM_EVENT_SCAN_DONE:
       message = "Wi-Fi scan completed";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_START:
       message = "Station mode started";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_STOP:
       message = "Station mode stopped";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_CONNECTED:
       message = "Connected to AP";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
       message = "Authentication mode changed";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_LOST_IP:
       message = "Lost IP address";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
       message = "WPS success in station mode";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_FAILED:
       message = "WPS failed in station mode";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
       message = "WPS timeout in station mode";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_STA_WPS_ER_PIN:
       message = "WPS pin code in station mode";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_START:
       message = "Access Point started";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_STOP:
       message = "Access Point stopped";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_STACONNECTED:
       message = "Station connected to Access Point";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     case SYSTEM_EVENT_AP_STADISCONNECTED:
       message = "Station disconnected from Access Point";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
     default:
       message = "Unknown Wi-Fi event";
-      Serial.println(message);
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println(message);
+      #endif
       displayScreen("Wifi", message);
       break;
   }
 }
+#endif
 
 //NFC callback handlers
 void onNfcModuleConnected() {
@@ -206,38 +344,49 @@ void onStartScanningTag() {
 
 void onReadingTag(/*ISO14443aTag tag*/) {
   displayScreen("Reading NFC Card..", "Don't remove the card untill done");
-  // tag.print();
 }
 
 void onReadTagRecord(String stringRecord) {
   displayScreen("Read NFC record:", stringRecord);
-  if(payment.payWithLnUrlWithdrawl(stringRecord)) {
-    displayPayed(String(payment.getVendingPrice()));
-    dispenser.dispense();
+  checkForNewPaymentsTask.abort();
+  checkForNewPaymentsTask.disable();
+  scanningForNfcTask.abort();
+  scanningForNfcTask.disable();
+  log_e();
+  payment.payWithLnUrlWithdrawl(stringRecord);
+  while(payment.inProgress()) {
+    //Wait untill payment is done, succes or unsuccesfully
+    log_e();
+
   }
+  log_e();
+  checkForNewPaymentsTask.enable();
+  checkForNewPaymentsTask.restart();
+  scanningForNfcTask.enable();
+  scanningForNfcTask.restart();
 }
 
-void onFailure(Nfc::Error error) {
-  if (error == Nfc::Error::scanFailed) {
+void onFailure(NfcWrapper::Error error) {
+  if (error == NfcWrapper::Error::scanFailed) {
       debugDisplayText("No NFC card detected yet..");
       return;
   }
 
   String errorString;
   switch (error) {
-    case Nfc::Error::connectionModuleFailed:
+    case NfcWrapper::Error::connectionModuleFailed:
       errorString = "Not connected to NFC module";
       break;
-    case Nfc::Error::scanFailed:
+    case NfcWrapper::Error::scanFailed:
       errorString = "Failed ";
       break;
-    case Nfc::Error::readFailed:
+    case NfcWrapper::Error::readFailed:
       errorString = "Failed to read card";
       break;
-    case Nfc::Error::identifyFailed:
+    case NfcWrapper::Error::identifyFailed:
       errorString = "Couldn't identify tag";
       break;
-    case Nfc::Error::releaseFailed:
+    case NfcWrapper::Error::releaseFailed:
       errorString = "Failed to release tag properly";
       break;
     default:
@@ -246,10 +395,65 @@ void onFailure(Nfc::Error error) {
   }
   displayErrorScreen("NFC payment Error", errorString);
 
-  if (error == Nfc::Error::connectionModuleFailed) {
+  if (error == NfcWrapper::Error::connectionModuleFailed) {
     delay(2000);
     nfc.powerDownMode();
     nfc.begin();
   }
 }
 
+// API call
+void doApiCall(String uri) {
+  #ifdef MY_DEBUG_SERIAL
+  MY_DEBUG_SERIAL.println("uri: " + uri);
+  #endif
+  WiFiClientSecure client;
+  client.setInsecure();
+  UriComponents uriComponents = UriComponents::Parse(uri.c_str());
+  String host = uriComponents.host.c_str();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+
+      // Your API endpoint
+    http.begin(uri);
+
+    // Send GET request
+    int httpResponseCode = http.GET();
+
+    if (httpResponseCode > 0) {
+      String payload = http.getString();
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println("HTTP Response Code: " + String(httpResponseCode));
+      MY_DEBUG_SERIAL.println("Response Data: " + payload);
+      #endif
+
+      // Parse JSON response
+      DynamicJsonDocument jsonDoc(1024); // Adjust the buffer size as needed
+      DeserializationError jsonError = deserializeJson(jsonDoc, payload);
+
+      if (jsonError) {
+        #ifdef MY_DEBUG_SERIAL
+        MY_DEBUG_SERIAL.println("JSON parsing error: " + String(jsonError.c_str()));
+        #endif
+      } else {
+        // Access JSON properties
+        String name = jsonDoc["name"];
+        String lastName = jsonDoc["lastname"];
+        int age = jsonDoc["age"];
+
+        #ifdef MY_DEBUG_SERIAL
+        MY_DEBUG_SERIAL.println("Name: " + name);
+        MY_DEBUG_SERIAL.println("Last Name: " + lastName);
+        MY_DEBUG_SERIAL.println("Age: " + String(age));
+        #endif
+      }
+    } else {
+      #ifdef MY_DEBUG_SERIAL
+      MY_DEBUG_SERIAL.println("Error in HTTP request");
+      #endif
+    }
+
+    http.end();
+  }
+}

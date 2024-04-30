@@ -28,9 +28,13 @@ class Payment {
         void configure(const char*  amount, const char*  lnbitsServer, const char*  invoiceKey);
         int getVendingPrice();
         bool payWithLnUrlWithdrawl(String url);
+        bool hasReceivedNewPayment(int amountToPay);
+        bool inProgress();
 
     private:
 
+        int _oldBalance;
+        int _balance;
         String _amount;
         String _lnbitsServer;
         String _invoiceKey;
@@ -41,6 +45,7 @@ class Payment {
 
         bool _down;
         bool _paid;
+        bool _inProgress;
 
         bool withdraw(String callback, String k1, String pr);
         Withdrawal getWithdrawal(String uri);
@@ -49,6 +54,8 @@ class Payment {
         bool checkInvoice(String invoiceId);
         String decode(String lnUrl);
         String getUrl(String string);
+        bool updateBalance();
+
 };
 
 #endif

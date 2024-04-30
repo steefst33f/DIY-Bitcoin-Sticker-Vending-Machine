@@ -10,6 +10,9 @@
 #include <Preferences.h>
 #include <DNSServer.h>
 
+void begin();
+void handleIncommingStream();
+
 class WiFiConfiguration {
 public:
     WiFiConfiguration(const char* portalSsid, const char* portalPassword);
